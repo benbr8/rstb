@@ -35,6 +35,8 @@ Some challenges when comparing to Python:
 - [ ] Test with Verilator and maybe more OS simulators
 - [ ] ...
 
+There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on rstb. At some point this could be taken up again.
+
 ### Not on the roadmap
 * Windows (although it shouldn't be a big issue)
 * ModelSim FLI
