@@ -1,0 +1,23 @@
+bindgen ../src/vhpi_user.h -o ../src/vhpi_user.rs --no-layout-tests --with-derive-default \
+    --allowlist-var vhpiCbValueChange \
+    --allowlist-var vhpiCbStartOfSimulation \
+    --allowlist-var vhpiCbEndOfSimulation \
+    --allowlist-var vhpiCbAfterDelay \
+    --allowlist-var vhpiCbLastKnownDeltaCycle \
+    --allowlist-var vhpiCbEndOfTimeStep \
+    --allowlist-var vhpiReturnCb \
+    \
+    --allowlist-function vhpi_register_cb \
+    --allowlist-function vhpi_remove_cb \
+    --allowlist-function vhpi_handle_by_name \
+    --allowlist-function vhpi_handle \
+    --allowlist-function vhpi_put_value \
+    --allowlist-function vhpi_get_value \
+    --allowlist-function vhpi_get_time \
+    --allowlist-function vhpi_get_str \
+    --allowlist-function vhpi_get_phys \
+    --allowlist-function vhpi_get \
+    --allowlist-function vhpi_iterator \
+    --allowlist-function vhpi_scan \
+    --allowlist-function vhpi_check_error \
+    --allowlist-function vhpi_printf

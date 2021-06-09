@@ -1,0 +1,18 @@
+[package]
+name = "rstb"
+version = "0.1.0"
+authors = ["benbr8"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+futures = "*"
+libc = "*"
+once_cell = "*"
+lazy_static = "*"
+fasthash = "*"
+futures-channel = "*"
+intmap = "*"
+queues = "*"
+lazy_mut = "*"
