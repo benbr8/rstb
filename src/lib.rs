@@ -3,6 +3,8 @@ mod executor;
 mod seamap;
 pub mod signal;
 pub mod trigger;
+
+#[cfg(feature = "vpi")]
 #[allow(
     non_upper_case_globals,
     dead_code,
@@ -10,8 +12,11 @@ pub mod trigger;
     clippy::upper_case_acronyms
 )]
 mod vpi;
+#[cfg(feature = "vhpi")]
 mod vhpi;
 pub mod sim_if;
+
+#[cfg(feature = "vpi")]
 #[allow(
     non_upper_case_globals,
     dead_code,
@@ -25,6 +30,7 @@ mod vpi_user;
     non_camel_case_types,
     clippy::upper_case_acronyms
 )]
+#[cfg(feature = "vhpi")]
 mod vhpi_user;
 mod rstb_obj;
 mod value;
@@ -111,8 +117,6 @@ fn end_of_simulation() {
 
 
 pub fn vpi_init(tests: VecTestFn) {
-    // set simulator interface to VPI
-    sim_if::set_sim_if("vpi");
 
     // set tests to execute
     unsafe { TEST_VEC = Some(tests) };
@@ -157,6 +161,7 @@ extern "C" fn vpi_end_of_simulation(
  *  VHPI
  */
 
+ #[cfg(feature = "vhpi")]
  #[allow(clippy::missing_safety_doc)]
  #[no_mangle]
  extern "C" fn vhpi_start_of_simulation (
@@ -167,6 +172,7 @@ extern "C" fn vpi_end_of_simulation(
  }
 
 
+ #[cfg(feature = "vhpi")]
  #[allow(clippy::missing_safety_doc)]
  #[no_mangle]
  extern "C" fn vhpi_end_of_simulation (
@@ -175,9 +181,8 @@ extern "C" fn vpi_end_of_simulation(
      end_of_simulation();
  }
 
+ #[cfg(feature = "vhpi")]
 pub fn vhpi_init() {
-    // set simulator interface to VHPI
-    sim_if::set_sim_if("vhpi");
 
     unsafe {
         let mut cb_data = vhpi_user::vhpiCbDataT {
@@ -196,6 +201,7 @@ pub fn vhpi_init() {
 
 }
 
+#[cfg(feature = "vhpi")]
 #[no_mangle]
 pub extern "C" fn vhpi_entry_point() {
     vhpi_init();

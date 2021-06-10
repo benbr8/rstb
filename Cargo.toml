@@ -16,3 +16,8 @@ futures-channel = "*"
 intmap = "*"
 queues = "*"
 lazy_mut = "*"
+
+[features]
+default = ["vpi"]
+vpi = []
+vhpi = []

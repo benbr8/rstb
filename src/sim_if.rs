@@ -1,14 +1,22 @@
-use crate::{vhpi, vpi, RstbErr, RstbResult};
-use lazy_static::lazy_static;
-use once_cell::sync::OnceCell;
+use crate::{RstbErr, RstbResult};
 
-static IF_KIND: OnceCell<SimIfKind> = OnceCell::new();
+#[cfg(feature = "vpi")]
+use crate::vpi;
+#[cfg(feature = "vhpi")]
+use crate::vhpi;
+use lazy_static::lazy_static;
 
 lazy_static! {
-    pub static ref SIM_IF: Box<dyn SimIf + Sync> = match IF_KIND.get().unwrap() {
-        SimIfKind::Vhpi => Box::new(vhpi::Vhpi {}),
-        SimIfKind::Vpi => Box::new(vpi::Vpi::new()),
-    };
+    pub static ref SIM_IF: Box<dyn SimIf + Sync> = new_interface();
+}
+
+#[cfg(feature = "vpi")]
+fn new_interface() -> Box<dyn SimIf + Sync> {
+    Box::new(vpi::Vpi::new())
+}
+#[cfg(feature = "vhpi")]
+fn new_interface() -> Box<dyn SimIf + Sync> {
+    Box::new(vhpi::Vhpi{})
 }
 
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
@@ -17,23 +25,6 @@ pub enum SimCallback {
     Edge(usize),
     ReadWrite,
     ReadOnly,
-}
-
-enum SimIfKind {
-    Vhpi,
-    Vpi,
-}
-
-pub fn set_sim_if(variant: &str) {
-    IF_KIND.get_or_init(|| {
-        if variant.to_lowercase().eq("vhpi") {
-            SimIfKind::Vhpi
-        } else if variant.to_lowercase().eq("vpi") {
-            SimIfKind::Vpi
-        } else {
-            panic!("{} is not a valid SimIfKind.", variant);
-        }
-    });
 }
 
 pub enum ObjectValue {
