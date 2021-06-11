@@ -31,3 +31,4 @@ vscode:
     - mshr-h.veriloghdl@1.0.6:RPslnvyzniF7C66mxHT+Hg==
     - vhdlwhiz.vhdl-by-vhdlwhiz@1.2.10:fJXQenGkzoZwUN/RddpuSw==
     - matklad.rust-analyzer
+    - mhutchie.git-graph
