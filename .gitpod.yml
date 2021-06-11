@@ -3,7 +3,6 @@ image:
 
 tasks:
   - before: >
-      sudo apt-get update &&
       sudo apt-get install verilog &&
       pip3 install cocotb &&
       export COCOTB_REDUCED_LOG_FMT=1 &
