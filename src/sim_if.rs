@@ -1,9 +1,9 @@
 use crate::{RstbErr, RstbResult};
 
-#[cfg(feature = "vpi")]
-use crate::vpi;
 #[cfg(feature = "vhpi")]
 use crate::vhpi;
+#[cfg(feature = "vpi")]
+use crate::vpi;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -16,7 +16,7 @@ fn new_interface() -> Box<dyn SimIf + Sync> {
 }
 #[cfg(feature = "vhpi")]
 fn new_interface() -> Box<dyn SimIf + Sync> {
-    Box::new(vhpi::Vhpi{})
+    Box::new(vhpi::Vhpi {})
 }
 
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
@@ -55,14 +55,25 @@ pub trait SimIf {
     fn get_root_handle(&self) -> RstbResult<usize>;
     fn register_callback(&self, cb: SimCallback) -> RstbResult<usize>; // TODO
     fn cancel_callback(&self, cb_hdl: usize) -> RstbResult<()>;
-    fn get_sim_time(&self, unit: &str) -> u64 {
-        let t = self.get_sim_time_steps();
+    fn get_sim_time(&self, unit: &str) -> f64 {
+        // this function does not preserve precision, so don't use carelessly
+        let t = self.get_sim_time_steps() as f64;
         let precision = self.get_sim_precision();
         ldexp10(t, precision - time_scale(unit).unwrap()).unwrap()
     }
-    fn get_sim_steps(&self, time: u64, unit: &str) -> u64 {
+    fn get_sim_steps(&self, time: f64, unit: &str) -> u64 {
         let precision = self.get_sim_precision();
-        ldexp10(time, time_scale(unit).unwrap() - precision).unwrap()
+        let steps = ldexp10(time, time_scale(unit).unwrap() - precision).unwrap();
+        if steps % 1.0 == 0.0 {
+            steps as u64
+        } else {
+            panic!(
+                "Can't convert time {} {} to sim steps without rounding (sim precision: {})",
+                time,
+                unit,
+                scale_time(precision).unwrap()
+            );
+        }
     }
 }
 
@@ -77,18 +88,25 @@ fn time_scale(unit: &str) -> RstbResult<i8> {
         _ => Err(RstbErr),
     }
 }
+fn scale_time(unit: i8) -> RstbResult<String> {
+    match unit {
+        -15 => Ok("fs".to_string()),
+        -12 => Ok("ps".to_string()),
+        -9 => Ok("ns".to_string()),
+        -6 => Ok("us".to_string()),
+        -3 => Ok("ms".to_string()),
+        0 => Ok("sec".to_string()),
+        _ => Err(RstbErr),
+    }
+}
 
-fn ldexp10(frac: u64, exp: i8) -> RstbResult<u64> {
+fn ldexp10(frac: f64, exp: i8) -> RstbResult<f64> {
     // Like math.ldexp, but base 10
     // Stolen from cocotb.
     if exp >= 0 {
-        Ok(frac * 10_u64.pow(exp as u32))
+        Ok(frac * 10_u64.pow(exp as u32) as f64)
     } else {
-        let div = 10_u64.pow(-exp as u32);
-        if frac % div != 0 {
-            Err(RstbErr)
-        } else {
-            Ok(frac / div)
-        }
+        let div = 10_u64.pow(-exp as u32) as f64;
+        Ok(frac / div)
     }
 }

@@ -16,6 +16,7 @@ futures-channel = "*"
 intmap = "*"
 queues = "*"
 lazy_mut = "*"
+num-format = "*"
 
 [features]
 default = ["vpi"]

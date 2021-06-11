@@ -85,7 +85,7 @@ pub struct Trigger {
 impl Trigger {
     pub fn timer(time: u64, unit: &str) -> Self {
         Trigger {
-            kind: TrigKind::Timer(SIM_IF.get_sim_steps(time, unit)),
+            kind: TrigKind::Timer(SIM_IF.get_sim_steps(time as f64, unit)),
             awaited: false,
         }
     }

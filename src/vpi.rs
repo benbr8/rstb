@@ -1,4 +1,6 @@
 use std::ffi::CStr;
+use num_format::ToFormattedString;
+use num_format::{Locale, ToFormattedStr};
 
 use crate::sim_if::SimCallback;
 use crate::trigger;
@@ -77,8 +79,12 @@ impl sim_if::SimIf for Vpi {
         }
         ((time_obj.high as u64) << 32) + time_obj.low as u64
     }
-    fn log(&self, s: &str) {
-        let mut string = format!("{} {}\n\0", self.get_sim_time_steps(), s);
+    fn log(&self, msg: &str) {
+        let t = self.get_sim_time("ns");
+        let int = t.floor() as u64;
+        let mut frac_str = format!("{:.3}", t % 1.0);
+        frac_str.remove(0);
+        let mut string = format!("{}{}ns {}\n\0", int.to_formatted_string(&Locale::en), frac_str, msg);
         // eprintln!("{}", string);
         unsafe { vpi_user::vpi_printf(string.as_mut_ptr() as *mut i8) };
     }
