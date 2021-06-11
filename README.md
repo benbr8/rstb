@@ -11,10 +11,10 @@ Turns out Rust is ideally suited for this task. It
 * has an extensive and fast growing ecosysem of open source packages,
 * and on top is blazingly fast.
 
-Some challenges when comparing to Python:
-* I found the learning cure to be much steeper.
-* While in Python you can modify any object from anywhere in the code, in Rust you need to bother with object lifetimes and which code can access what data in a very detailed way.
-* Rust is statically typed which makes implementing generic behaviour harder in comparison.
+Some disadvantages when comparing to Python:
+* I found the learning curve to be much steeper.
+* Static typing and the data ownership checking makes implementing tests slower and ...
+* much more verbose. Python tests look a lot cleaner.
 
 ### Current features
 - [x] Scheduling simulation callbacks through awaitable abstraction objects (Triggers)
@@ -40,3 +40,11 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 ### Not on the roadmap
 * Windows (although it shouldn't be a big issue)
 * ModelSim FLI
+
+### creating a rstb test
+* Write test (see examples in this project)
+* compile as C dynamic library by adding using `crate-type = ["cdylib"]`
+* Run with your favorite simulator (tested with Questa (VPI) and Icarus)
+  * see run_questa.sh and run_icarus.sh
+
+Run it on gitpod: https://gitpod.io/#https://github.com/benbr8/rstb
