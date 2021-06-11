@@ -14,7 +14,7 @@ class Scoreboard:
         self.expected: int = 0
         self.received: int = 0
         self.matched: int = 0
-        self._expQ: deque = deque()  # deque is a thread safe list implementation with fast append() and pop() operations
+        self._expQ: deque = deque()
         self._recvQ: deque = deque()
         
     def add_exp(self, trx):
