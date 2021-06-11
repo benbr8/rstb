@@ -16,8 +16,8 @@ tasks:
     command: >
       cd /workspace/rstb/examples/dff ;
       cargo build --release ;
-      echo "run Rstb test with `./run_icarus.sh`" ;
-      echo "run identical Cocotb test with `make`"
+      echo "run Rstb test with './run_icarus.sh'" ;
+      echo "run identical Cocotb test with 'make'"
 
 # https://www.gitpod.io/docs/config-ports/
 ports:
