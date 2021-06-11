@@ -3,10 +3,10 @@ image:
 
 tasks:
   - before: >
-      sudo apt update &&
-      sudo apt install iverilog &&
-      pip3 install cocotb &&
-      export COCOTB_REDUCED_LOG_FMT=1 &
+      sudo apt update ;
+      sudo apt install iverilog ;
+      pip3 install cocotb ;
+      export COCOTB_REDUCED_LOG_FMT=1 
     init: >
       cd /workspace/rstb/examples/dff &&
       gp open hdl/dff.v &&
