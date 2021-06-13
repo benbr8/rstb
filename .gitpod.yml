@@ -3,10 +3,10 @@ image:
 
 tasks:
   - before: >
-      sudo apt-get update &&
-      sudo apt-get install verilog &&
-      pip3 install cocotb &&
-      export COCOTB_REDUCED_LOG_FMT=1
+      sudo apt update ;
+      sudo apt install iverilog ;
+      pip3 install cocotb ;
+      export COCOTB_REDUCED_LOG_FMT=1 
     init: >
       cd /workspace/rstb/examples/dff &&
       gp open hdl/dff.v &&
@@ -16,8 +16,9 @@ tasks:
     command: >
       cd /workspace/rstb/examples/dff ;
       cargo build --release ;
-      echo "run Rstb test with `./run_icarus.sh`" ;
-      echo "run identical Cocotb test with `make`"
+      echo "build with 'cargo build --release'" ;
+      echo "run Rstb test with './run_icarus.sh'" ;
+      echo "run identical Cocotb test with 'make'"
 
 # https://www.gitpod.io/docs/config-ports/
 ports:
@@ -31,3 +32,4 @@ vscode:
     - mshr-h.veriloghdl@1.0.6:RPslnvyzniF7C66mxHT+Hg==
     - vhdlwhiz.vhdl-by-vhdlwhiz@1.2.10:fJXQenGkzoZwUN/RddpuSw==
     - matklad.rust-analyzer
+    - mhutchie.git-graph
