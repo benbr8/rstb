@@ -11,10 +11,7 @@ Turns out Rust is ideally suited for this task. It
 * has an extensive and fast growing ecosysem of open source packages,
 * and on top is blazingly fast.
 
-Some disadvantages when comparing to Python:
-* I found the learning curve to be much steeper.
-* Static typing and the data ownership checking makes implementing tests slower and ...
-* much more verbose. Python tests look a lot cleaner.
+When comparing to Python, tests in Rust are more verbose and writing them is a bit more of a hassle because of the static typing and borrow checking, but test execution is a lot faster.
 
 ### Current features
 - [x] Scheduling simulation callbacks through awaitable abstraction objects (Triggers)
@@ -25,14 +22,14 @@ Some disadvantages when comparing to Python:
 
 ### Feature roadmap
 - [ ] means to pass/fail a test
-- [ ] more types of sim object value access (bin string, real, ...). Currently only integer access is supported.
+- [ ] Add support for real types.
 - [ ] force / release signal values
 - [ ] vector slices and arrays
 - [ ] a logging solution and some fancy output formatting
 - [ ] a nicer way to start tests from command line
 - [ ] junit output for CI
-- [ ] get VHPI to run (currently I can only test on Questa, with which I have some VHPI issues)
-- [ ] Test with Verilator and maybe more OS simulators
+- [ ] Work on VHPI (currently I can only test on Questa, with which I have some VHPI issues)
+- [ ] Support more Simulators (currently only tested on Questa & Icarus with VPI)
 - [ ] ...
 
 There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on rstb. At some point this could be taken up again.

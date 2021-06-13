@@ -1,8 +1,8 @@
 use lazy_mut::lazy_mut;
 
 use crate::seamap::SeaMap;
+use crate::sim_if::{ObjectKind, SIM_IF};
 use crate::{RstbErr, RstbResult};
-use crate::{sim_if, sim_if::SIM_IF};
 
 lazy_mut! {
     static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
@@ -11,57 +11,32 @@ lazy_mut! {
     static mut SIG_MAP: SeaMap<usize, SimObject> = SeaMap::new();
 }
 
-
 #[derive(Clone, Copy, Debug)]
 pub struct SimObject {
     handle: usize,
-    kind: sim_if::ObjectKind,
+    kind: ObjectKind,
     size: i32,
+    signed: bool,
 }
 
 impl SimObject {
-    pub fn set_value_i32(&self, value: i32) -> RstbResult<()> {
-        if self.is_modifiable() {
-            SIM_IF.set_value_int(self.handle, value)?;
-            Ok(())
-        } else {
-            Err(RstbErr)
-        }
-    }
-
-    pub fn get_value_i32(&self) -> RstbResult<i32> {
-        if self.has_value() {
-            Ok(SIM_IF.get_value_int(self.handle())?)
-        } else {
-            Err(RstbErr)
-        }
-    }
-
-    pub fn get_value_bin(&self) -> RstbResult<String> {
-        if self.has_value() {
-            Ok(SIM_IF.get_value_bin(self.handle())?)
-        } else {
-            Err(RstbErr)
-        }
-    }
 
     pub fn handle(&self) -> usize {
         self.handle
     }
 
-    pub fn kind(&self) -> sim_if::ObjectKind {
+    pub fn kind(&self) -> ObjectKind {
         self.kind
     }
 
     pub fn name(&self) -> String {
-        SIM_IF.get_full_name(self.handle).expect("Couldn't get name of ObjectInner")
+        SIM_IF
+            .get_full_name(self.handle)
+            .expect("Couldn't get name of ObjectInner")
     }
 
-    pub fn width(&self) -> u32 {
-        match self.kind() {
-            sim_if::ObjectKind::BitVector(width) | sim_if::ObjectKind::Array(width) => width,
-            _ => 1,
-        }
+    pub fn size(&self) -> i32 {
+        self.size
     }
 
     pub fn is_signed(&self) -> bool {
@@ -69,11 +44,11 @@ impl SimObject {
     }
 
     pub fn is_modifiable(&self) -> bool {
-        !matches!(self.kind(), sim_if::ObjectKind::Unknown)
+        !matches!(self.kind, ObjectKind::Other)
     }
 
     pub fn has_value(&self) -> bool {
-        !matches!(self.kind(), sim_if::ObjectKind::Unknown)
+        !matches!(self.kind, ObjectKind::Other)
     }
 
     #[allow(clippy::needless_question_mark)] // it actueally is necessary
@@ -86,7 +61,7 @@ impl SimObject {
 
     #[allow(clippy::clone_on_copy)]
     pub fn from_handle(handle: usize) -> RstbResult<Self> {
-        if let Some(signal) = unsafe{SIG_MAP.get(&handle)} {
+        if let Some(signal) = unsafe { SIG_MAP.get(&handle) } {
             Ok(signal.clone())
         } else {
             Err(RstbErr)
@@ -94,7 +69,7 @@ impl SimObject {
     }
 
     pub fn from_name(full_name: &str) -> RstbResult<Self> {
-        let handle = match unsafe{SIG_MAP_NAME.get(full_name)} {
+        let handle = match unsafe { SIG_MAP_NAME.get(full_name) } {
             Some(h) => Some(h.to_owned()),
             _ => None,
         };
@@ -114,8 +89,9 @@ impl SimObject {
             handle,
             kind: SIM_IF.get_kind(handle),
             size: SIM_IF.get_size(handle),
+            signed: SIM_IF.is_signed(handle),
         };
-        unsafe{
+        unsafe {
             SIG_MAP.insert(handle, signal);
             SIG_MAP_NAME.insert(signal.name(), handle);
         };
@@ -135,17 +111,72 @@ impl SimObject {
     //     signal_list
     // }
 
-    // short interface
     pub fn i32(&self) -> i32 {
-        self.get_value_i32().unwrap()
+        if matches!(self.kind, ObjectKind::Bits) && self.size <= 32 {
+            let val = SIM_IF.get_value_int(self.handle()).unwrap() as i64;
+            // Some simulators don't return negative value for any vector size (Questa)
+            let ceil = 1i64 << (self.size - 1);
+            if val >= ceil {
+                (-2 * ceil + val) as i32
+            } else {
+                val as i32
+            }
+        } else {
+            panic!("Couldn't get value of {} as i32 type.", self.name());
+        }
     }
-    pub fn c(&self, name: &str) -> Self {
-        self.get_child(name).unwrap()
-    }
-    pub fn set(&self, val: i32) {
-        self.set_value_i32(val).unwrap();
+    pub fn u32(&self) -> u32 {
+        if matches!(self.kind, ObjectKind::Bits) && self.size <= 32 {
+            let val = SIM_IF.get_value_int(self.handle()).unwrap() as i64;
+            let ceil = 1i64 << self.size;
+            if val < 0 {
+                (val + ceil) as u32
+            } else {
+                val as u32
+            }
+        } else {
+            panic!("Couldn't get value of {} as u32 type.", self.name());
+        }
     }
     pub fn bin(&self) -> String {
-        self.get_value_bin().unwrap()
+        SIM_IF.get_value_bin(self.handle).unwrap()
     }
+    pub fn c(&self, name: &str) -> Self {
+        self.get_child(name)
+            .unwrap_or_else(|_| panic!("Could not get object with name {}.{}", self.name(), name))
+    }
+    pub fn set(&self, val: i32) {
+        if !matches!(self.kind, ObjectKind::Bits) {
+            panic!("Can't set signal {} of kind {:?} using set() or set_u32()", self.name(), self.kind);
+        }
+        SIM_IF.set_value_int(self.handle, val).unwrap();
+    }
+    pub fn set_u32(&self, val: u32) {
+        if val >= 1 << 31 {
+            let val_i32: i32 = unsafe{std::mem::transmute(val)};
+            self.set(val_i32)
+        } else {
+            self.set(val as i32);
+        }
+    }
+    pub fn set_bin(&self, val: &str) {
+        // remove '_' and 0b
+        let stripped = val.replace("0b", "");
+        let stripped = stripped.replace("_", "");
+        if stripped.len() == self.size as usize {
+            let is_valid = stripped.chars().all(|c| {valid_char(c)});
+            if is_valid {
+                SIM_IF.set_value_bin(self.handle, stripped).unwrap();
+            } else {
+                panic!("Can't set {} to {}. Invalid characters.", self.name(), val);
+            }
+        } else {
+            panic!("Can't set {} to {}. Length mismatch.", self.name(), val);
+        }
+    }
+}
+
+fn valid_char(c: char) -> bool {
+    let l = c.to_ascii_lowercase();
+    l == '0' || l == '1' || l == 'z' || l == 'x'
 }

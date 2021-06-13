@@ -36,16 +36,16 @@ pub enum ObjectValue {
 
 #[derive(Copy, Clone, Debug)]
 pub enum ObjectKind {
-    Integer,
+    Bits,
     Real,
-    BitVector(u32),
-    Array(u32),
-    Unknown,
+    Array,
+    Other,
 }
 
 pub trait SimIf {
     fn set_value_int(&self, handle: usize, value: i32) -> RstbResult<()>;
     fn get_value_int(&self, obj: usize) -> RstbResult<i32>;
+    fn set_value_bin(&self, obj: usize, value: String) -> RstbResult<()>;
     fn get_value_bin(&self, obj: usize) -> RstbResult<String>;
     fn get_handle_by_name(&self, name: &str) -> RstbResult<usize>;
     fn get_sim_time_steps(&self) -> u64;

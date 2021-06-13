@@ -19,7 +19,7 @@ impl Vpi {
 }
 
 impl SimIf for Vpi {
-    fn set_value_int(&self, handle: usize, value: i32) -> RstbResult<()> {
+    fn set_value_int(&self, obj: usize, value: i32) -> RstbResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: value },
@@ -30,7 +30,7 @@ impl SimIf for Vpi {
         };
         unsafe {
             vpi_user::vpi_put_value(
-                handle as *mut u32,
+                obj as *mut u32,
                 &mut val,
                 &mut time,
                 vpi_user::vpiInertialDelay as i32,
@@ -52,6 +52,29 @@ impl SimIf for Vpi {
                 Err(RstbErr)
             }
         }
+    }
+    fn set_value_bin(&self, obj: usize, value: String) -> RstbResult<()> {
+        let mut val = value;
+        val.push('\0');
+        let mut val = vpi_user::t_vpi_value {
+            format: vpi_user::vpiBinStrVal as i32,
+            value: vpi_user::t_vpi_value__bindgen_ty_1 { str_: val.as_mut_ptr() as *mut i8 },
+        };
+        let mut time = vpi_user::t_vpi_time {
+            type_: vpi_user::vpiSimTime as i32,
+            ..Default::default()
+        };
+        unsafe {
+            vpi_user::vpi_put_value(
+                obj as *mut u32,
+                &mut val,
+                &mut time,
+                vpi_user::vpiInertialDelay as i32,
+            );
+        };
+        // TODO: error??
+        Ok(())
+
     }
     fn get_value_bin(&self, obj: usize) -> RstbResult<String> {
         unsafe {
@@ -119,14 +142,15 @@ impl SimIf for Vpi {
         let t = get_kind_raw(obj);
         let size = self.get_size(obj) as u32;
         match t as u32 {
-            vpi_user::vpiIntegerVar => ObjectKind::Integer,
-            vpi_user::vpiRealVar => ObjectKind::Real,
+            vpi_user::vpiRealVar
+            | sv_vpi_user::vpiShortRealVar => ObjectKind::Real,
             vpi_user::vpiNet
-            | vpi_user::vpiNetBit
             | vpi_user::vpiReg
-            | vpi_user::vpiRegBit
-            | vpi_user::vpiMemoryWord => ObjectKind::BitVector(size),
-            _ => ObjectKind::Unknown,
+            | vpi_user::vpiIntegerVar
+            | sv_vpi_user::vpiBitVar
+            | sv_vpi_user::vpiLongIntVar
+            | sv_vpi_user::vpiIntVar => ObjectKind::Bits,
+            _ => ObjectKind::Other,
         }
     }
     fn is_signed(&self, obj_handle: usize) -> bool {

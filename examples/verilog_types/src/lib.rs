@@ -18,8 +18,10 @@ async fn test_default(dut: SimObject) -> RstbValue {
     print_obj(dut.c("q").handle());
 
     SIM_IF.log("DUT ELEMENTS:");
+    print_obj(dut.c("constant").handle());
     print_obj(dut.c("reg8").handle());
     print_obj(dut.c("reg_").handle());
+    print_obj(dut.c("logic_").handle());
     print_obj(dut.c("integer_").handle());
     print_obj(dut.c("int_").handle());
     print_obj(dut.c("longint_").handle());
@@ -29,20 +31,9 @@ async fn test_default(dut: SimObject) -> RstbValue {
     print_obj(dut.c("real_").handle());
     print_obj(dut.c("bits65").handle());
 
-    SIM_IF.log(&format!("int(bits65) = {}", dut.c("bits65").i32()));
     dut.c("clk").set(1);
     Trigger::timer(1, "ns").await;
-    // upper bits will be discarded, returns 1
-    SIM_IF.log(&format!("int(bits65) = {}", dut.c("bits65").i32()));
 
-    // questa will return 128 for both, icarus takes signed declaration into accounts
-    SIM_IF.log(&format!("int(reg8) = {}", dut.c("reg8").i32()));
-    SIM_IF.log(&format!("int(reg8_signed) = {}", dut.c("reg8_signed").i32()));
-    SIM_IF.log(&format!("signed(reg8) = {}", dut.c("reg8").is_signed()));
-    SIM_IF.log(&format!("signed(reg8_signed) = {}", dut.c("reg8_signed").is_signed()));
-    // both return 2**-31
-    SIM_IF.log(&format!("int(reg32) = {}", dut.c("reg32").i32()));
-    SIM_IF.log(&format!("int(reg32_signed) = {}", dut.c("reg32_signed").i32()));
     SIM_IF.log(&format!("binstr(reg32) = {}", SIM_IF.get_value_bin(dut.c("reg32").handle()).unwrap()));
     SIM_IF.log(&format!("binstr(reg32_signed) = {}", SIM_IF.get_value_bin(dut.c("reg32_signed").handle()).unwrap()));
 
@@ -50,8 +41,7 @@ async fn test_default(dut: SimObject) -> RstbValue {
     SIM_IF.log(&format!("int(reg1) = {}", dut.c("reg1").i32()));
     SIM_IF.log(&format!("int(reg1_signed) = {}", reg1_signed.i32()));
 
-    // can rstb handle "rising_edge" on signed regs of 1 bit size?
-    // --> it can since react() checks for values != 0
+    SIM_IF.log("Checking rising_edge on 1 bit signed reg");
     Task::fork(async move {
         Trigger::rising_edge(reg1_signed).await;
         SIM_IF.log("Rising_edge(reg1_signed) awaited");
@@ -64,6 +54,50 @@ async fn test_default(dut: SimObject) -> RstbValue {
     Trigger::timer(1, "ns").await;
 
 
+    SIM_IF.log("Interpreting 0x80 as signed and unsigned");
+    SIM_IF.log(&format!("reg8_signed.i32() = {}", dut.c("reg8_signed").i32()));
+    SIM_IF.log(&format!("reg8_signed.u32() = {}", dut.c("reg8_signed").u32()));
+    SIM_IF.log("Interpreting 0xFF as signed and unsigned");
+    SIM_IF.log(&format!("reg8_ff.i32() = {}", dut.c("reg8_ff").i32()));
+    SIM_IF.log(&format!("reg8_ff.u32() = {}", dut.c("reg8_ff").u32()));
+
+    SIM_IF.log("Setting reg8 = 255");
+    dut.c("reg8").set(255);
+    Trigger::read_only().await;
+    SIM_IF.log(&format!("reg8.bin() = {}", dut.c("reg8").bin()));
+    SIM_IF.log(&format!("reg8.i32() = {}", dut.c("reg8").i32()));
+    SIM_IF.log(&format!("reg8.u32() = {}", dut.c("reg8").u32()));
+    Trigger::timer(1, "ns").await;
+
+    SIM_IF.log("Setting reg8 = -1");
+    dut.c("reg8").set(-1);
+    Trigger::read_only().await;
+    SIM_IF.log(&format!("reg8.bin() = {}", dut.c("reg8").bin()));
+    SIM_IF.log(&format!("reg8.i32() = {}", dut.c("reg8").i32()));
+    SIM_IF.log(&format!("reg8.u32() = {}", dut.c("reg8").u32()));
+    Trigger::timer(1, "ns").await;
+
+    SIM_IF.log("Setting reg8_signed = 255");
+    dut.c("reg8_signed").set(255);
+    Trigger::read_only().await;
+    SIM_IF.log(&format!("reg8_signed.bin() = {}", dut.c("reg8_signed").bin()));
+    SIM_IF.log(&format!("reg8_signed.i32() = {}", dut.c("reg8_signed").i32()));
+    SIM_IF.log(&format!("reg8_signed.u32() = {}", dut.c("reg8_signed").u32()));
+    Trigger::timer(1, "ns").await;
+
+    SIM_IF.log("Setting reg8_signed = -1");
+    dut.c("reg8_signed").set(-1);
+    Trigger::read_only().await;
+    SIM_IF.log(&format!("reg8_signed.bin() = {}", dut.c("reg8_signed").bin()));
+    SIM_IF.log(&format!("reg8_signed.i32() = {}", dut.c("reg8_signed").i32()));
+    SIM_IF.log(&format!("reg8_signed.u32() = {}", dut.c("reg8_signed").u32()));
+    Trigger::timer(1, "ns").await;
+
+    SIM_IF.log("Setting reg8 = 0b1010_xXzZ");
+    dut.c("reg8").set_bin("0b1010_xXzZ");
+    Trigger::read_only().await;
+    SIM_IF.log(&format!("reg8.bin() = {}", dut.c("reg8").bin()));
+
     SIM_IF.log("Done test");
     RstbValue::None
 }
@@ -73,6 +107,7 @@ fn kind_name(kind: i32) -> String {
         25 => "vpiIntegerVar".to_string(),
         32 => "vpiModule".to_string(),
         36 => "vpiNet".to_string(),
+        41 => "vpiParameter".to_string(),
         47 => "vpiRealVar".to_string(),
         48 => "vpiReg".to_string(),
         610 => "vpiLongIntVar".to_string(),
