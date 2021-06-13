@@ -4,6 +4,7 @@ mod seamap;
 pub mod signal;
 pub mod trigger;
 
+
 #[cfg(feature = "vpi")]
 #[allow(
     non_upper_case_globals,
@@ -11,7 +12,7 @@ pub mod trigger;
     non_camel_case_types,
     clippy::upper_case_acronyms
 )]
-mod vpi;
+pub mod vpi;
 #[cfg(feature = "vhpi")]
 mod vhpi;
 pub mod sim_if;
@@ -24,6 +25,14 @@ pub mod sim_if;
     clippy::upper_case_acronyms
 )]
 mod vpi_user;
+#[cfg(feature = "vpi")]
+#[allow(
+    non_upper_case_globals,
+    dead_code,
+    non_camel_case_types,
+    clippy::upper_case_acronyms
+)]
+pub mod sv_vpi_user;
 #[allow(
     non_upper_case_globals,
     dead_code,

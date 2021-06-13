@@ -16,10 +16,11 @@ lazy_mut! {
 pub struct SimObject {
     handle: usize,
     kind: sim_if::ObjectKind,
+    size: i32,
 }
 
 impl SimObject {
-    pub fn set_value(&self, value: i32) -> RstbResult<()> {
+    pub fn set_value_i32(&self, value: i32) -> RstbResult<()> {
         if self.is_modifiable() {
             SIM_IF.set_value_int(self.handle, value)?;
             Ok(())
@@ -28,9 +29,17 @@ impl SimObject {
         }
     }
 
-    pub fn get_value(&self) -> RstbResult<i32> {
+    pub fn get_value_i32(&self) -> RstbResult<i32> {
         if self.has_value() {
             Ok(SIM_IF.get_value_int(self.handle())?)
+        } else {
+            Err(RstbErr)
+        }
+    }
+
+    pub fn get_value_bin(&self) -> RstbResult<String> {
+        if self.has_value() {
+            Ok(SIM_IF.get_value_bin(self.handle())?)
         } else {
             Err(RstbErr)
         }
@@ -53,6 +62,10 @@ impl SimObject {
             sim_if::ObjectKind::BitVector(width) | sim_if::ObjectKind::Array(width) => width,
             _ => 1,
         }
+    }
+
+    pub fn is_signed(&self) -> bool {
+        SIM_IF.is_signed(self.handle)
     }
 
     pub fn is_modifiable(&self) -> bool {
@@ -100,6 +113,7 @@ impl SimObject {
         let signal = SimObject {
             handle,
             kind: SIM_IF.get_kind(handle),
+            size: SIM_IF.get_size(handle),
         };
         unsafe{
             SIG_MAP.insert(handle, signal);
@@ -123,12 +137,15 @@ impl SimObject {
 
     // short interface
     pub fn i32(&self) -> i32 {
-        self.get_value().unwrap()
+        self.get_value_i32().unwrap()
     }
     pub fn c(&self, name: &str) -> Self {
         self.get_child(name).unwrap()
     }
     pub fn set(&self, val: i32) {
-        self.set_value(val).unwrap();
+        self.set_value_i32(val).unwrap();
+    }
+    pub fn bin(&self) -> String {
+        self.get_value_bin().unwrap()
     }
 }

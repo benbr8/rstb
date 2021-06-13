@@ -13,6 +13,8 @@ bindgen ../src/vpi_user.h -o ../src/vpi_user.rs --no-layout-tests --with-derive-
     --allowlist-var vpiFullName \
     --allowlist-var vpiDefName \
     --allowlist-var vpiType \
+    --allowlist-var vpiSigned \
+    --allowlist-var vpiBinStrVal \
     --allowlist-var vpiIntVal \
     --allowlist-var vpiStringVal \
     --allowlist-var vpiSuppressVal \

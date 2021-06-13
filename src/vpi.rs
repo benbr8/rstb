@@ -1,23 +1,24 @@
+use num_format::{Locale, ToFormattedString};
 use std::ffi::CStr;
-use num_format::ToFormattedString;
-use num_format::{Locale, ToFormattedStr};
 
-use crate::sim_if::SimCallback;
+use crate::sim_if::{ObjectKind, SimCallback, SimIf, SIM_IF};
 use crate::trigger;
 use crate::trigger::EdgeKind;
-use crate::{vpi_user, RstbErr, RstbResult, sim_if, sim_if::ObjectKind};
+use crate::{sv_vpi_user, vpi_user, RstbErr, RstbResult};
 
-pub struct Vpi {
+pub(crate) struct Vpi {
     precision: i8,
 }
 
 impl Vpi {
     pub fn new() -> Self {
-        Vpi{ precision: get_time_precision() }
+        Vpi {
+            precision: get_time_precision(),
+        }
     }
 }
 
-impl sim_if::SimIf for Vpi {
+impl SimIf for Vpi {
     fn set_value_int(&self, handle: usize, value: i32) -> RstbResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
@@ -42,11 +43,29 @@ impl sim_if::SimIf for Vpi {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
                 format: vpi_user::vpiIntVal as i32,
-                value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 }
+                value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
             };
             vpi_user::vpi_get_value(obj as *mut u32, &mut val);
             if val.format == vpi_user::vpiIntVal as i32 {
                 Ok(val.value.integer)
+            } else {
+                Err(RstbErr)
+            }
+        }
+    }
+    fn get_value_bin(&self, obj: usize) -> RstbResult<String> {
+        unsafe {
+            let mut val = vpi_user::t_vpi_value {
+                format: vpi_user::vpiBinStrVal as i32,
+                value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
+            };
+            vpi_user::vpi_get_value(obj as *mut u32, &mut val);
+            if val.format == vpi_user::vpiBinStrVal as i32 {
+                let s = CStr::from_ptr(check_null(val.value.str_)?)
+                    .to_owned()
+                    .into_string()
+                    .unwrap();
+                Ok(s)
             } else {
                 Err(RstbErr)
             }
@@ -84,14 +103,21 @@ impl sim_if::SimIf for Vpi {
         let int = t.floor() as u64;
         let mut frac_str = format!("{:.3}", t % 1.0);
         frac_str.remove(0);
-        let mut string = format!("{}{}ns {}\n\0", int.to_formatted_string(&Locale::en), frac_str, msg);
+        let mut string = format!(
+            "{}{}ns {}\n\0",
+            int.to_formatted_string(&Locale::en),
+            frac_str,
+            msg
+        );
         // eprintln!("{}", string);
         unsafe { vpi_user::vpi_printf(string.as_mut_ptr() as *mut i8) };
     }
+    fn get_size(&self, obj: usize) -> i32 {
+        unsafe { vpi_user::vpi_get(vpi_user::vpiSize as i32, obj as *mut u32) }
+    }
     fn get_kind(&self, obj: usize) -> ObjectKind {
         let t = get_kind_raw(obj);
-        let size = unsafe { vpi_user::vpi_get(vpi_user::vpiSize as i32, obj as *mut u32) } as u32;
-        // log(&format!("type: {}", t));
+        let size = self.get_size(obj) as u32;
         match t as u32 {
             vpi_user::vpiIntegerVar => ObjectKind::Integer,
             vpi_user::vpiRealVar => ObjectKind::Real,
@@ -103,10 +129,16 @@ impl sim_if::SimIf for Vpi {
             _ => ObjectKind::Unknown,
         }
     }
+    fn is_signed(&self, obj_handle: usize) -> bool {
+        (unsafe { vpi_user::vpi_get(vpi_user::vpiSigned as i32, obj_handle as *mut u32) } != 0)
+    }
     fn get_full_name(&self, obj: usize) -> RstbResult<String> {
         unsafe {
             let ptr = vpi_user::vpi_get_str(vpi_user::vpiFullName as i32, obj as *mut u32);
-            let s = CStr::from_ptr(check_null(ptr)?).to_owned().into_string().unwrap();
+            let s = CStr::from_ptr(check_null(ptr)?)
+                .to_owned()
+                .into_string()
+                .unwrap();
             Ok(s)
         }
     }
@@ -180,48 +212,46 @@ impl sim_if::SimIf for Vpi {
         Ok(ret as usize)
     }
     fn cancel_callback(&self, cb_hdl: usize) -> RstbResult<()> {
-        match unsafe {vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
+        match unsafe { vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
             1 => Ok(()),
-            _ => Err(RstbErr)
+            _ => Err(RstbErr),
         }
     }
 }
 
 #[no_mangle]
-pub extern "C" fn react_vpi(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
-    let cb = unsafe{(*cb_data)
-        .to_sim_callback()
-        .expect("Invalid callback data received.")};
-    // vpi::log(&format!("Converted CB: {:?}", cb));
+pub(crate) extern "C" fn react_vpi(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    let cb = unsafe {
+        (*cb_data)
+            .to_sim_callback()
+            .expect("Invalid callback data received.")
+    };
+    // SIM_IF.log(&format!("Converted CB: {:?}", cb));
 
     match cb {
         SimCallback::Edge(hdl) => {
-            // if signal is not a scalar, schedule all callbacks, since there is no "rising" on a multi bit signal
-            let mut edge = EdgeKind::Any;
-            let mut is_scalar = true;
-            if let sim_if::ObjectKind::BitVector(size) = sim_if::SIM_IF.get_kind(hdl) {
-                if size != 1 {
-                    is_scalar = false;
+            // only 1 bit types can have a rising or falling edge
+            match SIM_IF.get_size(hdl) {
+                1 => {
+                    let mut edge = EdgeKind::Any;
+                    unsafe {
+                        if !(*cb_data).value.is_null() {
+                            // this actually happens under some conditions?
+                            edge = match (*(*cb_data).value).value.integer {
+                                0 => EdgeKind::Falling,
+                                _ => EdgeKind::Rising,
+                            }
+                        }
+                    };
+                    trigger::react(cb, Some(edge));
                 }
+                _ => trigger::react(cb, None),
             }
-            if is_scalar {
-                unsafe{
-                    if !(*cb_data).value.is_null() {  // this actually happens under some conditions?
-                        edge = match (*(*cb_data).value).value.integer {
-                            0 => EdgeKind::Falling,
-                            _ => EdgeKind::Rising,
-                        };
-                    }
-                }
-            }
-            trigger::react(cb, Some(edge));
-        },
+        }
         _ => trigger::react(cb, None),
     }
-
     0
 }
-
 
 fn get_time_precision() -> i8 {
     let mut precision =
@@ -234,7 +264,6 @@ fn get_time_precision() -> i8 {
     }
     precision as i8
 }
-
 
 impl vpi_user::t_cb_data {
     pub fn to_sim_callback(&self) -> Option<SimCallback> {
@@ -254,7 +283,6 @@ impl vpi_user::t_cb_data {
     }
 }
 
-
 fn is_array(handle: usize) -> bool {
     // let val = unsafe { vpi_user::vpi_get(vpi_user::vpiArray as i32, handle as *mut u32) };
     let val = unsafe { vpi_user::vpi_get(17, handle as *mut u32) };
@@ -262,7 +290,7 @@ fn is_array(handle: usize) -> bool {
     r
 }
 
-pub fn print_vpi_cb_data(cb_data: *mut vpi_user::t_cb_data) {
+pub(crate) fn print_vpi_cb_data(cb_data: *mut vpi_user::t_cb_data) {
     unsafe {
         eprintln!("##################################");
         eprintln!("print_cb_data");
@@ -276,19 +304,26 @@ pub fn print_vpi_cb_data(cb_data: *mut vpi_user::t_cb_data) {
     }
 }
 
-fn get_kind_raw(obj: usize) -> i32 {
+pub fn get_size_raw(obj: usize) -> i32 {
+    unsafe { vpi_user::vpi_get(vpi_user::vpiSize as i32, obj as *mut u32) }
+}
+
+pub fn get_kind_raw(obj: usize) -> i32 {
     unsafe { vpi_user::vpi_get(vpi_user::vpiType as i32, obj as *mut u32) }
 }
 
 fn get_name(obj: usize) -> Option<String> {
     unsafe {
         let ptr = vpi_user::vpi_get_str(vpi_user::vpiName as i32, obj as *mut u32);
-        let s = CStr::from_ptr(check_null(ptr).ok()?).to_owned().into_string().unwrap();
+        let s = CStr::from_ptr(check_null(ptr).ok()?)
+            .to_owned()
+            .into_string()
+            .unwrap();
         Some(s)
     }
 }
 
-fn discover_nets(handle: usize) -> Vec<usize> {
+pub fn discover_nets(handle: usize) -> Vec<usize> {
     unsafe {
         let iterator = vpi_user::vpi_iterate(vpi_user::vpiNet as i32, handle as *mut u32);
         let mut list = Vec::new();

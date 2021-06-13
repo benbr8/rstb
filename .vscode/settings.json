@@ -1,0 +1,7 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "examples/verilog_types/Cargo.toml",
+        "examples/dff/Cargo.toml",
+        "Cargo.toml"
+    ]
+}

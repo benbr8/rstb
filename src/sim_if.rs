@@ -46,10 +46,13 @@ pub enum ObjectKind {
 pub trait SimIf {
     fn set_value_int(&self, handle: usize, value: i32) -> RstbResult<()>;
     fn get_value_int(&self, obj: usize) -> RstbResult<i32>;
+    fn get_value_bin(&self, obj: usize) -> RstbResult<String>;
     fn get_handle_by_name(&self, name: &str) -> RstbResult<usize>;
     fn get_sim_time_steps(&self) -> u64;
     fn log(&self, s: &str);
+    fn get_size(&self, obj_handle: usize) -> i32;
     fn get_kind(&self, obj_handle: usize) -> ObjectKind;
+    fn is_signed(&self, obj_handle: usize) -> bool;
     fn get_full_name(&self, obj: usize) -> RstbResult<String>;
     fn get_sim_precision(&self) -> i8;
     fn get_root_handle(&self) -> RstbResult<usize>;
@@ -59,11 +62,11 @@ pub trait SimIf {
         // this function does not preserve precision, so don't use carelessly
         let t = self.get_sim_time_steps() as f64;
         let precision = self.get_sim_precision();
-        ldexp10(t, precision - time_scale(unit).unwrap()).unwrap()
+        ldexp10(t, precision - time_scale(unit).unwrap())
     }
     fn get_sim_steps(&self, time: f64, unit: &str) -> u64 {
         let precision = self.get_sim_precision();
-        let steps = ldexp10(time, time_scale(unit).unwrap() - precision).unwrap();
+        let steps = ldexp10(time, time_scale(unit).unwrap() - precision);
         if steps % 1.0 == 0.0 {
             steps as u64
         } else {
@@ -100,13 +103,13 @@ fn scale_time(unit: i8) -> RstbResult<String> {
     }
 }
 
-fn ldexp10(frac: f64, exp: i8) -> RstbResult<f64> {
+fn ldexp10(frac: f64, exp: i8) -> f64 {
     // Like math.ldexp, but base 10
     // Stolen from cocotb.
     if exp >= 0 {
-        Ok(frac * 10_u64.pow(exp as u32) as f64)
+        frac * 10_u64.pow(exp as u32) as f64
     } else {
         let div = 10_u64.pow(-exp as u32) as f64;
-        Ok(frac / div)
+        frac / div
     }
 }
