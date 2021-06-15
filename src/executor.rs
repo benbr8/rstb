@@ -6,19 +6,27 @@ use std::{future::Future, pin::Pin, sync::{Arc, Mutex}};
 use queues::{Queue, IsQueue};
 
 use crate::value::RstbValue;
+use crate::sim_if::SIM_IF;
+
 
 lazy_mut! {
     static mut READY_QUEUE: Queue<Arc<Task>> = Queue::new();
 }
 
-pub fn schedule_task(task: Arc<Task>) {
+
+pub(crate) fn schedule_task(task: Arc<Task>) {
     unsafe {
         READY_QUEUE.add(task).expect("Error queueing task.");
     }
 }
+pub(crate) fn clear_ready_queue() {
+    unsafe { *READY_QUEUE = Queue::new() };
+}
 
+
+#[inline]
 fn next_task() -> Option<Arc<Task>> {
-    if let Ok(task) = unsafe { READY_QUEUE.remove()} {
+    if let Ok(task) = unsafe { READY_QUEUE.remove() } {
         Some(task)
     } else {
         None
@@ -26,7 +34,7 @@ fn next_task() -> Option<Arc<Task>> {
 }
 
 #[inline]
-pub fn run_once() {
+pub(crate) fn run_once() {
     loop {
         let next = next_task();
         if let Some(task) = next {
@@ -37,9 +45,9 @@ pub fn run_once() {
     }
 }
 
+
 #[inline]
 fn process_task(task: Arc<Task>) {
-    // vpi::log(&format!("Processing task: {:?}", task.name));
     if *task.state.lock().unwrap() == TaskState::Cancelled {
         // do not execute if state is cancelled, will be dropped once all references disappear
         return
@@ -57,14 +65,16 @@ fn process_task(task: Arc<Task>) {
             Poll::Ready(result) => Some(result),
         };
         if let Some(result) = result {
-            // vpi::log(&format!("Task: {:?} comlete", task.name));
+            // SIM_IF.log(&format!("Task: {:?} comlete", task.name));
             let mut tx_slot = task.join_tx.lock().unwrap();
-            let _ = tx_slot.take().unwrap().send(result);
+            if let Some(tx) = tx_slot.take() {
+                let _ = tx.send(result);
+            }
         }
     } else {
         panic!("Scheduled completed or uninitialized task.");
     }
-    // vpi::log(&format!("Processing done: {:?}", task.name));
+    // SIM_IF.log(&format!("Processing done: {:?}", task.name));
 }
 
 #[derive(PartialEq)]
@@ -124,8 +134,13 @@ impl Task {
         }
     }
     pub fn cancel(&self) {
-        // set state to Cancelled, Executor will drop the Task without execution on callback
+        // since we can't know the tasks current trigger, we set its state
+        // to cancelled so it will be discarded once the trigger fires
         *self.state.lock().unwrap() = TaskState::Cancelled;
+        let mut tx_slot = self.join_tx.lock().unwrap();
+        let tx = tx_slot.take().unwrap();
+        // SIM_IF.log(&format!("Cancelling: {:?}", self.name));
+        let _ = tx.send(RstbValue::None);
     }
 }
 
@@ -146,9 +161,16 @@ pub struct JoinHandle {
 }
 
 impl JoinHandle {
-    pub fn set_task(mut self, task: Arc<Task>) -> Self {
+    pub(crate) fn set_task(mut self, task: Arc<Task>) -> Self {
         self.awaited_task.replace(task);
         self
+    }
+    pub(crate) fn get_task(&self) -> Option<Arc<Task>> {
+        if let Some(task) = self.awaited_task.as_ref() {
+            Some(task.clone())
+        } else {
+            None
+        }
     }
     pub fn cancel(mut self) {
         // take awaited_task, cancel it and drop its reference

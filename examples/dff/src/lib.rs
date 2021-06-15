@@ -57,6 +57,13 @@ async fn reset(dut: SimObject) -> RstbValue {
     RstbValue::None
 }
 
+async fn fail_after_1ms() -> RstbValue {
+    Trigger::timer(1, "ms").await;
+    fail_current_test("panic!");
+
+    RstbValue::None
+}
+
 pub async fn test_default(dut: SimObject) -> RstbValue {
     let tb = DffTb::new();
     let clk = dut.c("clk");
@@ -70,25 +77,27 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
     Task::fork(d_stim(clk, d));
     Task::fork(tb.clone().monitor_in(clk, d));
     Task::fork(tb.clone().monitor_out(clk, d));
+    // Task::fork(fail_after_1ms());
+
 
     Trigger::timer(3, "ms").await;  // 3 ms
-    // Trigger::timer(20, "ns").await;  // 3 ms
     clock_task.cancel();
 
     Trigger::timer(100, "ns").await;  // 100 ns
     SIM_IF.log(tb.scoreboard.get().result().as_str());
 
+    pass_current_test("Some message");
     RstbValue::None
 }
 
 async fn test_default2(_dut: SimObject) -> RstbValue {
     SIM_IF.log("Starting test 2");
-    Trigger::timer(10, "ns").await;  // 3 ms
+    Trigger::timer(100, "ns").await;  // 100 ns
     SIM_IF.log("Done test 2");
-    RstbValue::Int(5)
+    // pass_current_test("Explicit pass");
+    RstbValue::None
 }
 
 
-// rstb::run_with_vpi!(test_default, test_default2);
 rstb::run_with_vpi!(test_default, test_default2);
 

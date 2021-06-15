@@ -20,7 +20,6 @@ lazy_mut! {
 static mut READ_ONLY: CallbackHandles = CallbackHandles { handle: None, callbacks: vec![]};
 static mut READ_WRITE: CallbackHandles = CallbackHandles { handle: None, callbacks: vec![]};
 
-
 struct CallbackHandles {
     handle: Option<usize>,
     callbacks: Vec<TrigShared>
@@ -58,12 +57,10 @@ pub(crate) fn cancel_all_triggers() {
             SIM_IF.cancel_callback(cb.handle.unwrap()).unwrap();
         }
     }
-
 }
 
 #[derive(Debug)]
 pub struct TrigShared {
-    finished: bool,
     waker: Waker,
     // If trigger is an edge, the react method needs to know if it is a rising or falling edge
     // so an existing callback does not have to be rescheduled.
@@ -84,6 +81,7 @@ pub struct Trigger {
 
 impl Trigger {
     pub fn timer(time: u64, unit: &str) -> Self {
+        // SIM_IF.log(&format!("TIMER: {}{}", time, unit));
         Trigger {
             kind: TrigKind::Timer(SIM_IF.get_sim_steps(time as f64, unit)),
             awaited: false,
@@ -142,7 +140,6 @@ impl Future for Trigger {
             // vpi::log("Initilaize new Trigger!");
             // initialize new Trigger
             let mut shared = TrigShared {
-                finished: false,
                 waker: cx.waker().clone(),
                 edge_kind: None,
             };
@@ -150,7 +147,6 @@ impl Future for Trigger {
             match self.kind {
                 TrigKind::ReadWrite => {
                     unsafe {
-                        // let mut callbacks =  READ_WRITE.lock().unwrap();
                         READ_WRITE.callbacks.push(shared);
                         if READ_WRITE.handle.is_none() {
                             let cb = SimCallback::ReadWrite;
@@ -162,7 +158,6 @@ impl Future for Trigger {
                 TrigKind::ReadOnly => {
                     // vpi::log("Creating RO trigger.");
                     unsafe {
-                        // let mut callbacks = READ_ONLY.lock().unwrap();
                         READ_ONLY.callbacks.push(shared);
                         if READ_ONLY.handle.is_none() {
                             // vpi::log("Handle is None. Registering");
@@ -175,7 +170,6 @@ impl Future for Trigger {
                 TrigKind::Timer(t) => {
                     // Add current time to key since since simulator will send back absolute time, not delta
                     let abs_time = t + SIM_IF.get_sim_time_steps();
-                    // let mut timer_map = TIMER_MAP.lock().unwrap();
                     if let Some(callbacks) = unsafe{TIMER_MAP.get_mut(abs_time)} {
                         callbacks.callbacks.push(shared);
                     } else {
@@ -186,7 +180,6 @@ impl Future for Trigger {
                 },
                 TrigKind::Edge(sig_hdl, edge_kind) => {
                     shared.edge_kind = Some(edge_kind);
-                    // let mut edge_map = EDGE_MAP.lock().unwrap();
                     if let Some(callbacks) = unsafe{EDGE_MAP.get_mut(sig_hdl as u64)} {
                         // vpi::log("Callback already exists. Appending.");
                         callbacks.callbacks.push(shared);
@@ -291,8 +284,4 @@ pub fn react(cb: SimCallback, edge: Option<EdgeKind>) {
         // execute woken tasks
         executor::run_once();
     }
-    // else {
-    //     vpi::log("Not waking any trigger.");
-    // }
-    // vpi::log("Done reacting on cb.");
 }

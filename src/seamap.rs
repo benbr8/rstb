@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, hash::Hash, collections::HashMap};
+use std::{borrow::Borrow, collections::{HashMap, hash_map::{Drain, Iter}}, hash::Hash};
 
 
 pub struct SeaMap<K, V>(HashMap<K, V, fasthash::sea::Hash64>);
@@ -51,5 +51,13 @@ where
         Q: Hash + Eq,
     {
         self.0.remove(k)
+    }
+    #[inline]
+    pub fn drain(&mut self) -> Drain<'_, K, V> {
+        self.0.drain()
+    }
+
+    pub fn iter(&self) -> Iter<'_, K, V> {
+        self.0.iter()
     }
 }

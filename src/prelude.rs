@@ -10,3 +10,4 @@ pub use crate::vpi_init;
 pub use crate::vhpi_init;
 pub use crate::rstb_obj::RstbObj;
 pub use crate::value::RstbValue;
+pub use crate::{pass_current_test, fail_current_test, init_test_result};

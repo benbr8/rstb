@@ -21,26 +21,33 @@ When comparing to Python, tests in Rust are more verbose and writing them is a b
 - [x] Macro for easily embedding user level tests
 
 ### Feature roadmap
-- [ ] means to pass/fail a test
-- [ ] Add support for real types.
+- [x] means to pass/fail a test
+- [ ] add support for real types.
 - [ ] force / release signal values
 - [ ] vector slices and arrays
+- [ ] joining multiple tasks
+- [ ] documentation
 - [ ] a logging solution and some fancy output formatting
 - [ ] a nicer way to start tests from command line
 - [ ] junit output for CI
 - [ ] Work on VHPI (currently I can only test on Questa, with which I have some VHPI issues)
-- [ ] Support more Simulators (currently only tested on Questa & Icarus with VPI)
+- [ ] Support more Simulators (currently only tested on Questa,  with VPI)
 - [ ] ...
 
-There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on rstb. At some point this could be taken up again.
+There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on Rstb. At some point this could be taken up again.
 
 ### Not on the roadmap
 * Windows (although it shouldn't be a big issue)
-* ModelSim FLI
+* Mentor/Siemens FLI
 
-### creating a rstb test
+### Rstb works with
+* Questa/ModelSim
+* [Icarus Verilog](https://github.com/steveicarus/iverilog)
+* Cadence simulators
+
+### creating a Rstb test
 * Write test (see examples in this project)
-* compile as C dynamic library by adding using `crate-type = ["cdylib"]`
+* compile as C dynamic library by adding `crate-type = ["cdylib"]` to `Cargo.toml` as with the examples using `cargo build --release`.
 * Run with your favorite simulator (tested with Questa (VPI) and Icarus)
   * see run_questa.sh and run_icarus.sh
 
