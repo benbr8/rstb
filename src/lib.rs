@@ -162,22 +162,6 @@ fn start_of_simulation() {
         }
     }
 
-    // SCHEDULE REPORTING TEST RESULTS
-    // executor::Task::spawn_from_future(
-    //     async move {
-    //         join_handle.await;
-    //         for (name, (passed,msg)) in unsafe {TEST_RESULTS.drain()} {
-    //             let mut result = "Failed";
-    //             if passed {
-    //                 result = "Passed";
-    //             }
-    //             SIM_IF.log(&format!("Result of test {}: {}(\"{}\")", name, result, msg));
-    //         }
-    //         RstbValue::None
-    //     },
-    //     "REPORT_RESULTS",
-    // );
-
     // execute first simulation tick
     executor::run_once();
 }

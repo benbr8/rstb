@@ -83,6 +83,13 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
     Trigger::timer(3, "ms").await;  // 3 ms
     clock_task.cancel();
 
+    // using combine!()
+    SIM_IF.log("forking a, b");
+    let a = Task::fork(async {Trigger::timer(10, "ns"); RstbValue::Int(1)});
+    let b = Task::fork(async {Trigger::timer(20, "ns"); RstbValue::Int(2)});
+    let c = combine!(a, b).await;
+    SIM_IF.log(&format!("combine(a, b): {:?}", c));
+
     Trigger::timer(100, "ns").await;  // 100 ns
     SIM_IF.log(tb.scoreboard.get().result().as_str());
 

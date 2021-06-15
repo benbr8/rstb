@@ -191,3 +191,14 @@ impl Future for JoinHandle {
         }
     }
 }
+
+#[macro_export]
+macro_rules! combine {
+    ($( $i:ident ),+) => {
+        Task::fork(async move {
+            let mut vec: Vec<RstbValue> = Vec::new();
+            $(vec.push($i.await);)+
+            RstbValue::Vec(vec)
+        });
+    }
+}
