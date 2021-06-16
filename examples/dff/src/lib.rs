@@ -68,6 +68,7 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
     let tb = DffTb::new();
     let clk = dut.c("clk");
     let d = dut.c("d");
+    let q = dut.c("q");
 
     // start clock
     let clock_task = Task::fork(clock(clk, 8, "ns"));
@@ -76,21 +77,27 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
 
     Task::fork(d_stim(clk, d));
     Task::fork(tb.clone().monitor_in(clk, d));
-    Task::fork(tb.clone().monitor_out(clk, d));
+    Task::fork(tb.clone().monitor_out(clk, q));
+    // Fail test after 1 ms, all triggers and tasks are shut down immediately.
     // Task::fork(fail_after_1ms());
 
+    // use force() or force_bin() to force a signal value
+    dut.c("q").force_bin("0");
 
-    Trigger::timer(3, "ms").await;  // 3 ms
+    Trigger::timer(1, "ms").await;
+    // release forced signal
+    q.release();
+    Trigger::timer(2, "ms").await;
     clock_task.cancel();
 
     // using combine!()
     SIM_IF.log("forking a, b");
-    let a = Task::fork(async {Trigger::timer(10, "ns"); RstbValue::Int(1)});
-    let b = Task::fork(async {Trigger::timer(20, "ns"); RstbValue::Int(2)});
+    let a = Task::fork(async {Trigger::timer(10, "ns").await; RstbValue::Int(1)});
+    let b = Task::fork(async {Trigger::timer(20, "ns").await; RstbValue::Int(2)});
     let c = combine!(a, b).await;
-    SIM_IF.log(&format!("combine(a, b): {:?}", c));
+    SIM_IF.log(&format!("combine!(a, b): {:?}", c));
 
-    Trigger::timer(100, "ns").await;  // 100 ns
+    Trigger::timer(100, "ns").await;
     SIM_IF.log(tb.scoreboard.get().result().as_str());
 
     pass_current_test("Some message");
@@ -99,7 +106,7 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
 
 async fn test_default2(_dut: SimObject) -> RstbValue {
     SIM_IF.log("Starting test 2");
-    Trigger::timer(100, "ns").await;  // 100 ns
+    Trigger::timer(100, "ns").await;
     SIM_IF.log("Done test 2");
     // pass_current_test("Explicit pass");
     RstbValue::None

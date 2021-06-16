@@ -19,6 +19,8 @@ bindgen ../src/vpi_user.h -o ../src/vpi_user.rs --no-layout-tests --with-derive-
     --allowlist-var vpiStringVal \
     --allowlist-var vpiSuppressVal \
     --allowlist-var vpiInertialDelay \
+    --allowlist-var vpiForceFlag \
+    --allowlist-var vpiReleaseFlag \
     --allowlist-var vpiArray \
     --allowlist-var vpiIntegerVar \
     --allowlist-var vpiRealVar \

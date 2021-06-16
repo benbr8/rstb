@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-// RstbObj shall allow the user to mutably share test objects (such as Scoreboard, etc.)
+// RstbObj shall allow the user to mutably share test objects (such as a Scoreboard, etc.)
 // between Tasks. Since the simulation is single threaded, we can use Rc, RefCell, which
 // are not Send + Sync without worrying.
 pub struct RstbObj<T>(Rc<RefCell<T>>);

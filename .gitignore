@@ -1,3 +1,5 @@
 /target
 Cargo.lock
 /.hdl_checker
+*.wlf
+*.do

@@ -19,7 +19,7 @@ impl Vpi {
 }
 
 impl SimIf for Vpi {
-    fn set_value_int(&self, obj: usize, value: i32) -> RstbResult<()> {
+    fn set_value_int(&self, obj: usize, value: i32, force: bool) -> RstbResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: value },
@@ -28,12 +28,16 @@ impl SimIf for Vpi {
             type_: vpi_user::vpiSimTime as i32,
             ..Default::default()
         };
+        let mut flag = vpi_user::vpiInertialDelay as i32;
+        if force {
+            flag = vpi_user::vpiForceFlag as i32;
+        }
         unsafe {
             vpi_user::vpi_put_value(
                 obj as *mut u32,
                 &mut val,
                 &mut time,
-                vpi_user::vpiInertialDelay as i32,
+                flag,
             );
         };
         // TODO: error??
@@ -53,7 +57,7 @@ impl SimIf for Vpi {
             }
         }
     }
-    fn set_value_bin(&self, obj: usize, value: String) -> RstbResult<()> {
+    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> RstbResult<()> {
         let mut val = value;
         val.push('\0');
         let mut val = vpi_user::t_vpi_value {
@@ -64,12 +68,16 @@ impl SimIf for Vpi {
             type_: vpi_user::vpiSimTime as i32,
             ..Default::default()
         };
+        let mut flag = vpi_user::vpiInertialDelay as i32;
+        if force {
+            flag = vpi_user::vpiForceFlag as i32;
+        }
         unsafe {
             vpi_user::vpi_put_value(
                 obj as *mut u32,
                 &mut val,
                 &mut time,
-                vpi_user::vpiInertialDelay as i32,
+                flag,
             );
         };
         // TODO: error??
@@ -93,6 +101,21 @@ impl SimIf for Vpi {
                 Err(RstbErr)
             }
         }
+    }
+    fn release(&self, obj: usize) -> RstbResult<()> {
+        let mut val = vpi_user::t_vpi_value {
+            format: vpi_user::vpiIntVal as i32,
+            value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
+        };
+        unsafe {
+            vpi_user::vpi_put_value(
+                obj as *mut u32,
+                &mut val,
+                std::ptr::null_mut(),
+                vpi_user::vpiReleaseFlag as i32,
+            );
+        };
+        Ok(())
     }
     fn get_handle_by_name(&self, name: &str) -> RstbResult<usize> {
         let mut name_string = name.to_string();

@@ -145,28 +145,52 @@ impl SimObject {
         self.get_child(name)
             .unwrap_or_else(|_| panic!("Could not get object with name {}.{}", self.name(), name))
     }
+    pub fn release(&self) {
+        SIM_IF.release(self.handle).unwrap();
+    }
     pub fn set(&self, val: i32) {
+        self._set(val, false);
+    }
+    pub fn force(&self, val: i32) {
+        self._set(val, true);
+    }
+    #[inline]
+    fn _set(&self, val: i32, force: bool) {
         if !matches!(self.kind, ObjectKind::Bits) {
             panic!("Can't set signal {} of kind {:?} using set() or set_u32()", self.name(), self.kind);
         }
-        SIM_IF.set_value_int(self.handle, val).unwrap();
+        SIM_IF.set_value_int(self.handle, val, force).unwrap();
     }
     pub fn set_u32(&self, val: u32) {
+        self._set_u32(val, false)
+    }
+    pub fn force_u32(&self, val: u32) {
+        self._set_u32(val, true)
+    }
+    #[inline]
+    fn _set_u32(&self, val: u32, force: bool) {
         if val >= 1 << 31 {
             let val_i32: i32 = unsafe{std::mem::transmute(val)};
-            self.set(val_i32)
+            self._set(val_i32, force);
         } else {
-            self.set(val as i32);
+            self._set(val as i32, force);
         }
     }
     pub fn set_bin(&self, val: &str) {
+        self._set_bin(val, false)
+    }
+    pub fn force_bin(&self, val: &str) {
+        self._set_bin(val, true)
+    }
+    #[inline]
+    fn _set_bin(&self, val: &str, force: bool) {
         // remove '_' and 0b
         let stripped = val.replace("0b", "");
         let stripped = stripped.replace("_", "");
         if stripped.len() == self.size as usize {
             let is_valid = stripped.chars().all(|c| {valid_char(c)});
             if is_valid {
-                SIM_IF.set_value_bin(self.handle, stripped).unwrap();
+                SIM_IF.set_value_bin(self.handle, stripped, force).unwrap();
             } else {
                 panic!("Can't set {} to {}. Invalid characters.", self.name(), val);
             }

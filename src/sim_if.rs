@@ -43,10 +43,11 @@ pub enum ObjectKind {
 }
 
 pub trait SimIf {
-    fn set_value_int(&self, handle: usize, value: i32) -> RstbResult<()>;
+    fn set_value_int(&self, handle: usize, value: i32, force: bool) -> RstbResult<()>;
     fn get_value_int(&self, obj: usize) -> RstbResult<i32>;
-    fn set_value_bin(&self, obj: usize, value: String) -> RstbResult<()>;
+    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> RstbResult<()>;
     fn get_value_bin(&self, obj: usize) -> RstbResult<String>;
+    fn release(&self, obj: usize) -> RstbResult<()>;
     fn get_handle_by_name(&self, name: &str) -> RstbResult<usize>;
     fn get_sim_time_steps(&self) -> u64;
     fn log(&self, s: &str);

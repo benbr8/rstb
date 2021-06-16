@@ -23,15 +23,15 @@ When comparing to Python, tests in Rust are more verbose and writing them is a b
 ### Feature roadmap
 - [x] means to pass/fail a test
 - [ ] add support for real types.
-- [ ] force / release signal values
+- [x] force / release signal values
 - [ ] vector slices and arrays
-- [ ] joining multiple tasks
+- [x] joining multiple tasks
 - [ ] documentation
 - [ ] a logging solution and some fancy output formatting
 - [ ] a nicer way to start tests from command line
 - [ ] junit output for CI
-- [ ] Work on VHPI (currently I can only test on Questa, with which I have some VHPI issues)
-- [ ] Support more Simulators (currently only tested on Questa,  with VPI)
+- [ ] Work on VHPI (No simulator I have access to supports it)
+- [ ] Support more Simulators
 - [ ] ...
 
 There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on Rstb. At some point this could be taken up again.
@@ -48,7 +48,7 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 ### creating a Rstb test
 * Write test (see examples in this project)
 * compile as C dynamic library by adding `crate-type = ["cdylib"]` to `Cargo.toml` as with the examples using `cargo build --release`.
-* Run with your favorite simulator (tested with Questa (VPI) and Icarus)
-  * see run_questa.sh and run_icarus.sh
+* Run with your favorite simulator
+  * see run_questa.sh/run_icarus.sh/run_cadence.sh
 
 Run it on gitpod: https://gitpod.io/#https://github.com/benbr8/rstb
