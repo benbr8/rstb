@@ -2,10 +2,11 @@
 
 use crate::prelude::*;
 use crate::seamap::SeaMap;
-use futures::future::{BoxFuture, select_all};
+use futures::future::{Future, BoxFuture, select_all};
 use lazy_mut::lazy_mut;
 
 
+lazy_mut! { pub static mut SEQUENCE_MAP: SeaMap<String, Sequence> = SeaMap::new(); }
 lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
 
 
@@ -19,9 +20,51 @@ macro_rules! assertion {
         Assertion::try_add_assertion(move || { $i.boxed() }, $j, stringify!($i));
     }
 }
+#[macro_export]
+macro_rules! sequence {
+    ($i: expr, $j: expr) => {
+        Sequence::try_add_sequence(move || { $j.boxed() }, $i);
+    }
+}
 
-pub struct Assertion
-{
+pub struct Sequence {
+    name: String,
+    generator: Generator,
+}
+
+impl Sequence {
+    pub fn try_add_sequence(fut: impl Fn() -> BoxFuture<'static, RstbValue> + 'static, name: &str) {
+        let seq = Self {
+            name: name.to_string(),
+            generator: RstbObj::new(Box::new(fut)),
+        };
+        unsafe {
+            SEQUENCE_MAP.init();
+            if !SEQUENCE_MAP.contains_key(name) {
+                SEQUENCE_MAP.insert(name.to_string(), seq);
+            }
+        }
+    }
+    pub fn gen(&self) -> impl Future<Output = RstbValue> + Send + 'static {
+        let a = (self.generator.get())();
+        async move { a.await }
+    }
+    pub fn get(name: &str) -> impl Future<Output = RstbValue> + Send + 'static {
+        unsafe {
+            if SEQUENCE_MAP.contains_key(name) {
+                SEQUENCE_MAP.get(name).unwrap().gen()
+            } else {
+                panic!("Sequence '{}' wasn't previously defined.", name);
+            }
+        }
+    }
+    pub fn use_seq(name: &str) -> JoinHandle {
+        Task::fork(Sequence::get(name))
+    }
+}
+
+
+pub struct Assertion {
     name: String,
     enabled: bool,
     triggers: Vec<Trigger>,
