@@ -42,6 +42,7 @@ mod vhpi_user;
     clippy::upper_case_acronyms
 )]
 mod vpi_user;
+mod assertion;
 
 use seamap::SeaMap;
 use executor::Task;
@@ -49,9 +50,11 @@ use futures::future::BoxFuture;
 use lazy_mut::lazy_mut;
 use once_cell::sync::OnceCell;
 use sim_if::SIM_IF;
-use std::{collections::VecDeque, sync::Arc};
+use std::sync::Arc;
 use std::time;
 use value::RstbValue;
+use assertion::print_assertion_stats;
+
 
 #[derive(Debug)]
 pub struct RstbErr;
@@ -90,13 +93,13 @@ macro_rules! run_with_vpi {
         }
     }
 }
-pub fn pass_current_test(msg: &str) {
+pub fn pass_test(msg: &str) {
     let (test, name) = unsafe { CURRENT_TEST.take().unwrap() };
     set_test_result(name, true, msg.to_string());
     tear_down_test(test);
 }
 
-pub fn fail_current_test(msg: &str) {
+pub fn fail_test(msg: &str) {
     let (test, name) = unsafe { CURRENT_TEST.take().unwrap() };
     set_test_result(name, false, msg.to_string());
     tear_down_test(test);
@@ -165,13 +168,13 @@ fn start_of_simulation() {
     // execute first simulation tick
     executor::run_once();
 }
-// lazy_mut! { static mut TEST_RESULTS: VecDeque<(String, bool, String)> = VecDeque::new(); }
 
 fn end_of_simulation() {
     let duration = SIM_START_TIME.get().unwrap().elapsed().as_secs_f64();
     let final_sim_time = SIM_IF.get_sim_time("ns");
     let sim_speed = final_sim_time as f64 / duration;
 
+    print_assertion_stats();
     SIM_IF.log(&format!("Simulation time: {} ns", final_sim_time));
     SIM_IF.log(&format!("Real time: {:.3} s", duration));
     SIM_IF.log(&format!("Simulation speed: {:.3} ns/s", sim_speed));

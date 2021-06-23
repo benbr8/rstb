@@ -59,7 +59,7 @@ pub(crate) fn cancel_all_triggers() {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TrigShared {
     waker: Waker,
     // If trigger is an edge, the react method needs to know if it is a rising or falling edge
@@ -67,6 +67,7 @@ pub struct TrigShared {
     edge_kind: Option<EdgeKind>,
 }
 
+#[derive(Clone)]
 pub enum TrigKind {
     Edge(usize, EdgeKind),
     Timer(u64),
@@ -74,6 +75,7 @@ pub enum TrigKind {
     ReadOnly,
 }
 
+#[derive(Clone)]
 pub struct Trigger {
     kind: TrigKind,
     awaited: bool,
@@ -93,9 +95,9 @@ impl Trigger {
             awaited: false,
         }
     }
-    pub fn edge(signal: SimObject, kind: EdgeKind) -> Self {
+    pub fn edge(signal: SimObject) -> Self {
         Trigger {
-            kind: TrigKind::Edge(signal.handle(), kind),
+            kind: TrigKind::Edge(signal.handle(), EdgeKind::Any),
             awaited: false,
         }
     }

@@ -6,6 +6,7 @@ pub enum RstbValue {
     Float(f32),
     BitStr(String),
     Vec(Vec<RstbValue>),
-    None
+    None,
+    Error,
     // .. tbd
 }

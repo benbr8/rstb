@@ -59,7 +59,7 @@ async fn reset(dut: SimObject) -> RstbValue {
 
 async fn fail_after_1ms() -> RstbValue {
     Trigger::timer(1, "ms").await;
-    fail_current_test("panic!");
+    fail_test("panic!");
 
     RstbValue::None
 }
@@ -91,16 +91,17 @@ pub async fn test_default(dut: SimObject) -> RstbValue {
     clock_task.cancel();
 
     // using combine!()
-    SIM_IF.log("forking a, b");
+    SIM_IF.log("forking a, b, c");
     let a = Task::fork(async {Trigger::timer(10, "ns").await; RstbValue::Int(1)});
     let b = Task::fork(async {Trigger::timer(20, "ns").await; RstbValue::Int(2)});
-    let c = combine!(a, b).await;
-    SIM_IF.log(&format!("combine!(a, b): {:?}", c));
+    let c = Task::fork(async {Trigger::timer(15, "ns").await; RstbValue::Int(3)});
+    let d = combine!(a, b, c).await;
+    SIM_IF.log(&format!("combine!(a, b, c): {:?}", d));
 
     Trigger::timer(100, "ns").await;
     SIM_IF.log(tb.scoreboard.get().result().as_str());
 
-    pass_current_test("Some message");
+    pass_test("Some message");
     RstbValue::None
 }
 

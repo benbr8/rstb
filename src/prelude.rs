@@ -1,4 +1,4 @@
-pub use crate::executor::Task;
+pub use crate::executor::{JoinHandle, Task};
 pub use crate::trigger::Trigger;
 pub use crate::signal::SimObject;
 pub use crate::sim_if::SIM_IF;
@@ -10,4 +10,5 @@ pub use crate::vpi_init;
 pub use crate::vhpi_init;
 pub use crate::rstb_obj::RstbObj;
 pub use crate::value::RstbValue;
-pub use crate::{pass_current_test, fail_current_test, init_test_result, combine};
+pub use crate::{pass_test, fail_test, init_test_result, combine, assertion};
+pub use crate::assertion::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP};

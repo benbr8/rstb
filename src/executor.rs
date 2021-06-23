@@ -177,6 +177,12 @@ impl JoinHandle {
         let task = self.awaited_task.take().expect("Task already cancelled.");
         task.cancel();
     }
+    pub fn and_then(self, fut: impl Future<Output = RstbValue> + Send + 'static) -> JoinHandle {
+        Task::fork(async move {
+            self.join_rx.await.unwrap();
+            fut.await
+        })
+    }
 }
 
 impl Future for JoinHandle {
