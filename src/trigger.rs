@@ -25,8 +25,6 @@ struct CallbackHandles {
     callbacks: Vec<TrigShared>
 }
 
-impl CallbackHandles {}
-
 #[derive(PartialEq, Clone, Copy, Debug)]
 pub enum EdgeKind {
     Any,

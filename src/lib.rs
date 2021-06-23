@@ -94,15 +94,19 @@ macro_rules! run_with_vpi {
     }
 }
 pub fn pass_test(msg: &str) {
-    let (test, name) = unsafe { CURRENT_TEST.take().unwrap() };
-    set_test_result(name, true, msg.to_string());
-    tear_down_test(test);
+    // Passes test has not already failed/passed
+    if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
+        set_test_result(name, true, msg.to_string());
+        tear_down_test(test);
+    }
 }
 
 pub fn fail_test(msg: &str) {
-    let (test, name) = unsafe { CURRENT_TEST.take().unwrap() };
-    set_test_result(name, false, msg.to_string());
-    tear_down_test(test);
+    // Fails test has not already failed/passed
+    if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
+        set_test_result(name, false, msg.to_string());
+        tear_down_test(test);
+    }
 }
 
 fn tear_down_test(test: Arc<Task>) {
@@ -125,12 +129,16 @@ fn start_of_simulation() {
 
     let sim_root = signal::SimObject::get_root().unwrap();
 
-    // SCHEDULE FIRST TEST
+    // schedule first test
     let (test, name) = unsafe { TEST_VEC.remove(0) };
     let mut join_handle = executor::Task::spawn_from_future(
         async move {
             let test_handle = executor::Task::spawn_from_future(
-                async move { (test)(sim_root).await },
+                async move {
+                    let result = (test)(sim_root).await;
+                    fail_test("Test result defaults to failed!");
+                    result
+                },
                 "TEST_INNER_0",
             );
             unsafe { CURRENT_TEST = Some((test_handle.get_task().unwrap(), name)) };
@@ -140,7 +148,7 @@ fn start_of_simulation() {
         "TEST_0",
     );
 
-    // SCHEDULE SUBSEQUENT TESTS
+    // schedule subsequent tests
     let n_tests = unsafe { TEST_VEC.len() };
     for j in 0..n_tests {
         if !unsafe { TEST_VEC.is_empty() } {
@@ -149,7 +157,11 @@ fn start_of_simulation() {
                     join_handle.await;
                     let (test, name) = unsafe { TEST_VEC.remove(0) };
                     let test_handle = executor::Task::spawn_from_future(
-                        async move { (test)(sim_root).await },
+                        async move {
+                            let result = (test)(sim_root).await;
+                            fail_test("Test result defaults to failed!");
+                            result
+                        },
                         &format!("TEST_INNER_{}", j),
                     );
                     unsafe {
