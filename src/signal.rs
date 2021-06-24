@@ -2,7 +2,7 @@ use lazy_mut::lazy_mut;
 
 use crate::seamap::SeaMap;
 use crate::sim_if::{ObjectKind, SIM_IF};
-use crate::{RstbErr, RstbResult};
+use crate::SimpleResult;
 
 lazy_mut! {
     static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
@@ -52,7 +52,7 @@ impl SimObject {
     }
 
     #[allow(clippy::needless_question_mark)] // it actueally is necessary
-    pub fn get_child(&self, name: &str) -> RstbResult<SimObject> {
+    pub fn get_child(&self, name: &str) -> SimpleResult<Self> {
         let mut child_name = self.name();
         child_name.push('.');
         child_name.push_str(name);
@@ -60,15 +60,15 @@ impl SimObject {
     }
 
     #[allow(clippy::clone_on_copy)]
-    pub fn from_handle(handle: usize) -> RstbResult<Self> {
+    pub fn from_handle(handle: usize) -> SimpleResult<Self> {
         if let Some(signal) = unsafe { SIG_MAP.get(&handle) } {
             Ok(signal.clone())
         } else {
-            Err(RstbErr)
+            Err(())
         }
     }
 
-    pub fn from_name(full_name: &str) -> RstbResult<Self> {
+    pub fn from_name(full_name: &str) -> SimpleResult<Self> {
         let handle = match unsafe { SIG_MAP_NAME.get(full_name) } {
             Some(h) => Some(h.to_owned()),
             _ => None,
@@ -79,7 +79,7 @@ impl SimObject {
         }
     }
 
-    fn new_from_name(full_name: &str) -> RstbResult<Self> {
+    fn new_from_name(full_name: &str) -> SimpleResult<Self> {
         let handle = SIM_IF.get_handle_by_name(full_name)?;
         Ok(SimObject::new_from_handle(handle))
     }
@@ -98,7 +98,7 @@ impl SimObject {
         signal
     }
 
-    pub fn get_root() -> RstbResult<Self> {
+    pub fn get_root() -> SimpleResult<Self> {
         Ok(SimObject::new_from_handle(SIM_IF.get_root_handle()?))
     }
 

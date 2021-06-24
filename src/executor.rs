@@ -5,7 +5,8 @@ use lazy_mut::lazy_mut;
 use std::{future::Future, pin::Pin, sync::{Arc, Mutex}};
 use queues::{Queue, IsQueue};
 
-use crate::value::RstbValue;
+use crate::value::Val;
+use crate::RstbResult;
 use crate::sim_if::SIM_IF;
 
 
@@ -85,19 +86,19 @@ enum TaskState {
 }
 
 pub struct Task {
-    future: Mutex<Option<BoxFuture<'static, RstbValue>>>,
+    future: Mutex<Option<BoxFuture<'static, RstbResult>>>,
     state: Mutex<TaskState>,
     name: Option<String>,
-    join_tx: Mutex<Option<oneshot::Sender<RstbValue>>>,
+    join_tx: Mutex<Option<oneshot::Sender<RstbResult>>>,
 }
 impl Task {
     pub fn fork(
-        future: impl Future<Output = RstbValue> + Send + 'static
+        future: impl Future<Output = RstbResult> + Send + 'static
     ) -> JoinHandle {
         Task::spawn_from_future(future, "forked")
     }
     pub fn spawn_from_future(
-        future: impl Future<Output = RstbValue> + Send + 'static,
+        future: impl Future<Output = RstbResult> + Send + 'static,
         name: &str,
     ) -> JoinHandle {
         let (task, join_handle) = Task::new_from_future(future, name);
@@ -105,12 +106,12 @@ impl Task {
         join_handle
     }
     fn new_from_future(
-        future: impl Future<Output = RstbValue> + Send + 'static,
+        future: impl Future<Output = RstbResult> + Send + 'static,
         name: &str,
     ) -> (Arc<Self>, JoinHandle) {
         Task::new(future.boxed(), name)
     }
-    fn new(fut: BoxFuture<'static, RstbValue>, name: &str) -> (Arc<Self>, JoinHandle) {
+    fn new(fut: BoxFuture<'static, RstbResult>, name: &str) -> (Arc<Self>, JoinHandle) {
         let (tx, mut join_handle) = new_join();
         let task = Self {
             future: Mutex::new(Some(fut)),
@@ -140,7 +141,7 @@ impl Task {
         let mut tx_slot = self.join_tx.lock().unwrap();
         let tx = tx_slot.take().unwrap();
         // SIM_IF.log(&format!("Cancelling: {:?}", self.name));
-        let _ = tx.send(RstbValue::None);
+        let _ = tx.send(Ok(Val::None));
     }
 }
 
@@ -150,14 +151,14 @@ impl ArcWake for Task {
     }
 }
 
-fn new_join() -> (oneshot::Sender<RstbValue>, JoinHandle) {
-    let (tx, rx) = oneshot::channel::<RstbValue>();
+fn new_join() -> (oneshot::Sender<RstbResult>, JoinHandle) {
+    let (tx, rx) = oneshot::channel::<RstbResult>();
     (tx, JoinHandle { join_rx: rx, awaited_task: None })
 }
 
 pub struct JoinHandle {
     awaited_task: Option<Arc<Task>>,
-    join_rx: oneshot::Receiver<RstbValue>,
+    join_rx: oneshot::Receiver<RstbResult>,
 }
 
 impl JoinHandle {
@@ -177,16 +178,16 @@ impl JoinHandle {
         let task = self.awaited_task.take().expect("Task already cancelled.");
         task.cancel();
     }
-    pub fn and_then(self, fut: impl Future<Output = RstbValue> + Send + 'static) -> JoinHandle {
+    pub fn and_then(self, fut: impl Future<Output = RstbResult> + Send + 'static) -> JoinHandle {
         Task::fork(async move {
-            self.join_rx.await.unwrap();
+            self.join_rx.await.unwrap()?;
             fut.await
         })
     }
 }
 
 impl Future for JoinHandle {
-    type Output = RstbValue;
+    type Output = RstbResult;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.join_rx.poll_unpin(cx) {
@@ -202,9 +203,9 @@ impl Future for JoinHandle {
 macro_rules! combine {
     ($( $i:ident ),+) => {
         Task::fork(async move {
-            let mut vec: Vec<RstbValue> = Vec::new();
-            $(vec.push($i.await);)+
-            RstbValue::Vec(vec)
+            let mut vec: Vec<Val> = Vec::new();
+            $(vec.push($i.await.unwrap());)+
+            Ok(Val::Vec(vec))
         });
     }
 }

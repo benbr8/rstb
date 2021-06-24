@@ -1,4 +1,4 @@
-use crate::{RstbErr, RstbResult};
+use crate::SimpleResult;
 
 #[cfg(feature = "vhpi")]
 use crate::vhpi;
@@ -43,22 +43,22 @@ pub enum ObjectKind {
 }
 
 pub trait SimIf {
-    fn set_value_int(&self, handle: usize, value: i32, force: bool) -> RstbResult<()>;
-    fn get_value_int(&self, obj: usize) -> RstbResult<i32>;
-    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> RstbResult<()>;
-    fn get_value_bin(&self, obj: usize) -> RstbResult<String>;
-    fn release(&self, obj: usize) -> RstbResult<()>;
-    fn get_handle_by_name(&self, name: &str) -> RstbResult<usize>;
+    fn set_value_int(&self, handle: usize, value: i32, force: bool) -> SimpleResult<()>;
+    fn get_value_int(&self, obj: usize) -> SimpleResult<i32>;
+    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> SimpleResult<()>;
+    fn get_value_bin(&self, obj: usize) -> SimpleResult<String>;
+    fn release(&self, obj: usize) -> SimpleResult<()>;
+    fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize>;
     fn get_sim_time_steps(&self) -> u64;
     fn log(&self, s: &str);
     fn get_size(&self, obj_handle: usize) -> i32;
     fn get_kind(&self, obj_handle: usize) -> ObjectKind;
     fn is_signed(&self, obj_handle: usize) -> bool;
-    fn get_full_name(&self, obj: usize) -> RstbResult<String>;
+    fn get_full_name(&self, obj: usize) -> SimpleResult<String>;
     fn get_sim_precision(&self) -> i8;
-    fn get_root_handle(&self) -> RstbResult<usize>;
-    fn register_callback(&self, cb: SimCallback) -> RstbResult<usize>; // TODO
-    fn cancel_callback(&self, cb_hdl: usize) -> RstbResult<()>;
+    fn get_root_handle(&self) -> SimpleResult<usize>;
+    fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize>; // TODO
+    fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()>;
     fn get_sim_time(&self, unit: &str) -> f64 {
         // this function does not preserve precision, so don't use carelessly
         let t = self.get_sim_time_steps() as f64;
@@ -81,7 +81,7 @@ pub trait SimIf {
     }
 }
 
-fn time_scale(unit: &str) -> RstbResult<i8> {
+fn time_scale(unit: &str) -> SimpleResult<i8> {
     match unit {
         "fs" => Ok(-15),
         "ps" => Ok(-12),
@@ -89,10 +89,10 @@ fn time_scale(unit: &str) -> RstbResult<i8> {
         "us" => Ok(-6),
         "ms" => Ok(-3),
         "sec" => Ok(0),
-        _ => Err(RstbErr),
+        _ => Err(()),
     }
 }
-fn scale_time(unit: i8) -> RstbResult<String> {
+fn scale_time(unit: i8) -> SimpleResult<String> {
     match unit {
         -15 => Ok("fs".to_string()),
         -12 => Ok("ps".to_string()),
@@ -100,7 +100,7 @@ fn scale_time(unit: i8) -> RstbResult<String> {
         -6 => Ok("us".to_string()),
         -3 => Ok("ms".to_string()),
         0 => Ok("sec".to_string()),
-        _ => Err(RstbErr),
+        _ => Err(()),
     }
 }
 

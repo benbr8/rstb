@@ -6,7 +6,7 @@ use std::mem::replace;
 use intmap::IntMap;
 
 use crate::executor;
-use crate::{value::RstbValue, signal::SimObject, sim_if::{SimCallback, SIM_IF}};
+use crate::{value::Val, signal::SimObject, sim_if::{SimCallback, SIM_IF}};
 
 lazy_mut! {
     // IntMap specializes on u64 keys and is faster than even SeaMap
@@ -126,7 +126,7 @@ impl Trigger {
 }
 
 impl Future for Trigger {
-    type Output = RstbValue;
+    type Output = Val;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // vpi::log("Polling trigger");
@@ -134,7 +134,7 @@ impl Future for Trigger {
         // the waker signaled its completion.
         if self.awaited {
             // vpi::log("Trigger done!");
-            Poll::Ready(RstbValue::None)
+            Poll::Ready(Val::None)
         } else {
             self.awaited = true;
             // vpi::log("Initilaize new Trigger!");

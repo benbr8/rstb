@@ -52,16 +52,16 @@ use once_cell::sync::OnceCell;
 use sim_if::SIM_IF;
 use std::sync::Arc;
 use std::time;
-use value::RstbValue;
+use value::Val;
 use assertion::print_assertion_stats;
 
 
-#[derive(Debug)]
-pub struct RstbErr;
-pub type RstbResult<T> = Result<T, RstbErr>;
+pub type MsgResult<T> = Result<T, String>;
+pub type SimpleResult<T> = Result<T, ()>;
+pub type RstbResult = Result<Val, Val>;
 
 pub type VecTestFn = Vec<(
-    fn(signal::SimObject) -> BoxFuture<'static, RstbValue>,
+    fn(signal::SimObject) -> BoxFuture<'static, RstbResult>,
     String,
 )>;
 
@@ -135,15 +135,17 @@ fn start_of_simulation() {
         async move {
             let test_handle = executor::Task::spawn_from_future(
                 async move {
-                    let result = (test)(sim_root).await;
-                    fail_test("Test result defaults to failed!");
-                    result
+                    match (test)(sim_root).await {
+                        Ok(_) => pass_test(""),
+                        Err(_) => fail_test(""),
+                    }
+                    Ok(Val::None)
                 },
                 "TEST_INNER_0",
             );
             unsafe { CURRENT_TEST = Some((test_handle.get_task().unwrap(), name)) };
-            test_handle.await;
-            RstbValue::None
+            test_handle.await?;
+            Ok(Val::None)
         },
         "TEST_0",
     );
@@ -158,9 +160,11 @@ fn start_of_simulation() {
                     let (test, name) = unsafe { TEST_VEC.remove(0) };
                     let test_handle = executor::Task::spawn_from_future(
                         async move {
-                            let result = (test)(sim_root).await;
-                            fail_test("Test result defaults to failed!");
-                            result
+                            match (test)(sim_root).await {
+                                Ok(_) => pass_test(""),
+                                Err(_) => fail_test(""),
+                            }
+                            Ok(Val::None)
                         },
                         &format!("TEST_INNER_{}", j),
                     );
@@ -168,7 +172,7 @@ fn start_of_simulation() {
                         CURRENT_TEST = Some((test_handle.get_task().unwrap(), name))
                     };
                     test_handle.await;
-                    RstbValue::None
+                    Ok(Val::None)
                 },
                 &format!("TEST_{}", j),
             );

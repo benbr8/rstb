@@ -1,7 +1,7 @@
 use rstb::prelude::*;
 
 
-async fn test_default(dut: SimObject) -> RstbValue {
+async fn test_default(dut: SimObject) -> RstbResult {
     let c = dut.c("clk");
 
     run_all_assertions();
@@ -17,53 +17,47 @@ async fn test_default(dut: SimObject) -> RstbValue {
     // Trigger::timer(10, "ns").await;
     // c.set(0);
     Trigger::timer(1, "us").await;
-    RstbValue::None
+    Ok(Val::None)
 }
 
-async fn assertion_setup(dut: SimObject) -> RstbValue {
+async fn assertion_setup(dut: SimObject) -> RstbResult {
     sequence!("seq0", async move {
         Trigger::timer(5, "ns").await;
         SIM_IF.log("Seq0 returning");
-        RstbValue::None
+        Ok(Val::None)
     });
     sequence!("seq1", async move {
         Trigger::timer(6, "ns").await;
         SIM_IF.log("Seq1 returning");
-        RstbValue::None
+        Ok(Val::None)
     });
     sequence!("seq2", async move {
         Trigger::timer(7, "ns").await;
         SIM_IF.log("Seq2 returning");
-        RstbValue::None
+        Err(Val::None)
     });
-
-
-    let a = async move {
-        let a = Sequence::use_seq("seq0");
-        RstbValue::None
-    };
 
     let c = dut.c("clk");
     assertion!(async move {
-        Sequence::use_seq("seq0").await;
-        Sequence::use_seq("seq1").await;
-        Sequence::use_seq("seq2").await;
-        RstbValue::None
+        Sequence::use_seq("seq0").await?;
+        Sequence::use_seq("seq1").await?;
+        Sequence::use_seq("seq2").await?;
+        Ok(Val::None)
     }, vec![Trigger::edge(c)]);
     run_all_assertions();
 
     // let c = dut.c("clk");
     // assertion!(async move {
     //     match c.i32() {
-    //         0 => RstbValue::Error,
-    //         _ => RstbValue::None
+    //         0 => Val::Error,
+    //         _ => Val::None
     //     }
     // }, vec![Trigger::edge(c)]);
     // run_all_assertions();
 
 
 
-    RstbValue::None
+    Ok(Val::None)
 }
 
 

@@ -10,7 +10,7 @@ lazy_mut! { pub static mut SEQUENCE_MAP: SeaMap<String, Sequence> = SeaMap::new(
 lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
 
 
-type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbValue>>>;
+type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbResult>>>;
 
 
 
@@ -33,7 +33,7 @@ pub struct Sequence {
 }
 
 impl Sequence {
-    pub fn try_add_sequence(fut: impl Fn() -> BoxFuture<'static, RstbValue> + 'static, name: &str) {
+    pub fn try_add_sequence(fut: impl Fn() -> BoxFuture<'static, RstbResult> + 'static, name: &str) {
         let seq = Self {
             name: name.to_string(),
             generator: RstbObj::new(Box::new(fut)),
@@ -45,11 +45,11 @@ impl Sequence {
             }
         }
     }
-    pub fn gen(&self) -> impl Future<Output = RstbValue> + Send + 'static {
+    pub fn gen(&self) -> impl Future<Output = RstbResult> + Send + 'static {
         let a = (self.generator.get())();
         async move { a.await }
     }
-    pub fn get(name: &str) -> impl Future<Output = RstbValue> + Send + 'static {
+    pub fn get(name: &str) -> impl Future<Output = RstbResult> + Send + 'static {
         unsafe {
             if SEQUENCE_MAP.contains_key(name) {
                 SEQUENCE_MAP.get(name).unwrap().gen()
@@ -77,12 +77,12 @@ pub struct Assertion {
 impl Assertion
 {
     #[allow(unreachable_code)]
-    async fn run(&'static self) -> RstbValue {
+    async fn run(&'static self) -> RstbResult {
         loop {
             // await trigger
             let mut trig_list = Vec::with_capacity(self.triggers.len());
             for trig in self.triggers.iter().cloned() {
-                trig_list.push(Task::fork(async move {trig.clone().await; SIM_IF.log("triggered!"); RstbValue::None}));
+                trig_list.push(Task::fork(async move {trig.clone().await; SIM_IF.log("triggered!"); Ok(Val::None)}));
             }
             // cancel remaining tasks. TODO: reuse without cancel + reschedule
             let (_, _, rem_vec) = select_all(trig_list).await;
@@ -101,19 +101,18 @@ impl Assertion
                 });
                 // update
                 Task::fork(async move {
-                    let result = join_handle.await;
-                    if matches!(result, RstbValue::Error) {
-                        self.fail();
-                    } else {
+                    if join_handle.await.is_ok() {
                         self.pass();
+                    } else {
+                        self.fail();
                     }
-                    RstbValue::None
+                    Ok(Val::None)
                 });
             }
         }
-        RstbValue::None
+        Ok(Val::None)
     }
-    pub fn try_add_assertion(fut: impl Fn() -> BoxFuture<'static, RstbValue> + 'static, triggers: Vec<Trigger>, name: &str) {
+    pub fn try_add_assertion(fut: impl Fn() -> BoxFuture<'static, RstbResult> + 'static, triggers: Vec<Trigger>, name: &str) {
         let assertion = Self {
             name: name.to_string(),
             enabled: true,

@@ -2,7 +2,7 @@
 use rstb::prelude::*;
 use rstb::vpi;
 
-async fn test_default(dut: SimObject) -> RstbValue {
+async fn test_default(dut: SimObject) -> RstbResult {
     SIM_IF.log("Starting test");
     Trigger::timer(10, "ns").await;
 
@@ -46,7 +46,7 @@ async fn test_default(dut: SimObject) -> RstbValue {
         Trigger::rising_edge(reg1_signed).await;
         SIM_IF.log("Rising_edge(reg1_signed) awaited");
         SIM_IF.log(&format!("int(reg1_signed) = {}", reg1_signed.i32()));
-        RstbValue::None
+        Ok(Val::None)
     });
     reg1_signed.set(0);
     Trigger::timer(1, "ns").await;
@@ -99,7 +99,7 @@ async fn test_default(dut: SimObject) -> RstbValue {
     SIM_IF.log(&format!("reg8.bin() = {}", dut.c("reg8").bin()));
 
     SIM_IF.log("Done test");
-    RstbValue::None
+    Err(Val::None)
 }
 
 fn kind_name(kind: i32) -> String {

@@ -1,11 +1,11 @@
 
 
 #[derive(Debug, Clone)]
-pub enum RstbValue {
+pub enum Val {
     Int(i32),
     Float(f32),
     BitStr(String),
-    Vec(Vec<RstbValue>),
+    Vec(Vec<Val>),
     None,
     Error,
     // .. tbd

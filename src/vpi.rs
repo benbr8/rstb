@@ -4,7 +4,7 @@ use std::ffi::CStr;
 use crate::sim_if::{ObjectKind, SimCallback, SimIf, SIM_IF};
 use crate::trigger;
 use crate::trigger::EdgeKind;
-use crate::{sv_vpi_user, vpi_user, RstbErr, RstbResult};
+use crate::{sv_vpi_user, vpi_user, SimpleResult, RstbResult};
 
 pub(crate) struct Vpi {
     precision: i8,
@@ -19,7 +19,7 @@ impl Vpi {
 }
 
 impl SimIf for Vpi {
-    fn set_value_int(&self, obj: usize, value: i32, force: bool) -> RstbResult<()> {
+    fn set_value_int(&self, obj: usize, value: i32, force: bool) -> SimpleResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: value },
@@ -43,7 +43,7 @@ impl SimIf for Vpi {
         // TODO: error??
         Ok(())
     }
-    fn get_value_int(&self, obj: usize) -> RstbResult<i32> {
+    fn get_value_int(&self, obj: usize) -> SimpleResult<i32> {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
                 format: vpi_user::vpiIntVal as i32,
@@ -53,11 +53,11 @@ impl SimIf for Vpi {
             if val.format == vpi_user::vpiIntVal as i32 {
                 Ok(val.value.integer)
             } else {
-                Err(RstbErr)
+                Err(())
             }
         }
     }
-    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> RstbResult<()> {
+    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> SimpleResult<()> {
         let mut val = value;
         val.push('\0');
         let mut val = vpi_user::t_vpi_value {
@@ -84,7 +84,7 @@ impl SimIf for Vpi {
         Ok(())
 
     }
-    fn get_value_bin(&self, obj: usize) -> RstbResult<String> {
+    fn get_value_bin(&self, obj: usize) -> SimpleResult<String> {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
                 format: vpi_user::vpiBinStrVal as i32,
@@ -98,11 +98,11 @@ impl SimIf for Vpi {
                     .unwrap();
                 Ok(s)
             } else {
-                Err(RstbErr)
+                Err(())
             }
         }
     }
-    fn release(&self, obj: usize) -> RstbResult<()> {
+    fn release(&self, obj: usize) -> SimpleResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
@@ -117,7 +117,7 @@ impl SimIf for Vpi {
         };
         Ok(())
     }
-    fn get_handle_by_name(&self, name: &str) -> RstbResult<usize> {
+    fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize> {
         let mut name_string = name.to_string();
         name_string.push('\0');
 
@@ -129,7 +129,7 @@ impl SimIf for Vpi {
         };
         if hdl == 0 {
             self.log(&format!("Couldn't get handle from name {}", name));
-            Result::Err(RstbErr)
+            Result::Err(())
         } else {
             Result::Ok(hdl)
         }
@@ -179,7 +179,7 @@ impl SimIf for Vpi {
     fn is_signed(&self, obj_handle: usize) -> bool {
         (unsafe { vpi_user::vpi_get(vpi_user::vpiSigned as i32, obj_handle as *mut u32) } != 0)
     }
-    fn get_full_name(&self, obj: usize) -> RstbResult<String> {
+    fn get_full_name(&self, obj: usize) -> SimpleResult<String> {
         unsafe {
             let ptr = vpi_user::vpi_get_str(vpi_user::vpiFullName as i32, obj as *mut u32);
             let s = CStr::from_ptr(check_null(ptr)?)
@@ -192,22 +192,22 @@ impl SimIf for Vpi {
     fn get_sim_precision(&self) -> i8 {
         self.precision
     }
-    fn get_root_handle(&self) -> RstbResult<usize> {
+    fn get_root_handle(&self) -> SimpleResult<usize> {
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
         if iterator.is_null() {
-            return Err(RstbErr);
+            return Err(());
         }
         let root = unsafe { vpi_user::vpi_scan(iterator) };
         if root.is_null() {
-            return Err(RstbErr);
+            return Err(());
         }
         if !unsafe { vpi_user::vpi_scan(iterator).is_null() } {
             unsafe { vpi_user::vpi_free_object(iterator) };
         }
         Ok(root as usize)
     }
-    fn register_callback(&self, cb: SimCallback) -> RstbResult<usize> {
+    fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize> {
         // reason
         let reason = match cb {
             SimCallback::Time(_) => vpi_user::cbAfterDelay as i32,
@@ -258,10 +258,10 @@ impl SimIf for Vpi {
         // vpi::log("Registeried callback with simulator.");
         Ok(ret as usize)
     }
-    fn cancel_callback(&self, cb_hdl: usize) -> RstbResult<()> {
+    fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         match unsafe { vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
             1 => Ok(()),
-            _ => Err(RstbErr),
+            _ => Err(()),
         }
     }
 }
@@ -385,9 +385,9 @@ pub fn discover_nets(handle: usize) -> Vec<usize> {
     }
 }
 
-fn check_null<T>(ptr: *mut T) -> RstbResult<*mut T> {
+fn check_null<T>(ptr: *mut T) -> SimpleResult<*mut T> {
     if ptr.is_null() {
-        Err(RstbErr)
+        Err(())
     } else {
         Ok(ptr)
     }

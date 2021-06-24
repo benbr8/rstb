@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 
 
-pub async fn clock(clk: SimObject, period: u32, unit: &str) -> RstbValue {
+pub async fn clock(clk: SimObject, period: u32, unit: &str) -> RstbResult {
     let half_period = period / 2;
     loop {
         clk.set(0);
@@ -14,7 +14,7 @@ pub async fn clock(clk: SimObject, period: u32, unit: &str) -> RstbValue {
         Trigger::timer(half_period as u64, unit).await;
         // SIM_IF.log(&format!("clk={}", clk.binstr()));
     }
-    RstbValue::None
+    Ok(Val::None)
 }
 
 pub struct Scoreboard<T>
