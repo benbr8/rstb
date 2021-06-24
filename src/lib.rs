@@ -42,7 +42,7 @@ mod vhpi_user;
     clippy::upper_case_acronyms
 )]
 mod vpi_user;
-mod assertion;
+mod assertions;
 
 use seamap::SeaMap;
 use executor::Task;
@@ -53,7 +53,7 @@ use sim_if::SIM_IF;
 use std::sync::Arc;
 use std::time;
 use value::Val;
-use assertion::print_assertion_stats;
+use assertions::print_assertion_stats;
 
 
 pub type MsgResult<T> = Result<T, String>;

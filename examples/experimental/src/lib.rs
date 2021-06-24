@@ -1,6 +1,5 @@
 use rstb::prelude::*;
 
-
 async fn test_default(dut: SimObject) -> RstbResult {
     let c = dut.c("clk");
 
@@ -8,14 +7,14 @@ async fn test_default(dut: SimObject) -> RstbResult {
 
     Trigger::timer(1, "us").await;
     c.set(0);
-    // Trigger::timer(1, "us").await;
-    // c.set(1);
-    // Trigger::timer(10, "ns").await;
-    // c.set(0);
-    // Trigger::timer(10, "ns").await;
-    // c.set(1);
-    // Trigger::timer(10, "ns").await;
-    // c.set(0);
+    Trigger::timer(1, "us").await;
+    c.set(1);
+    Trigger::timer(10, "ns").await;
+    c.set(0);
+    Trigger::timer(10, "ns").await;
+    c.set(1);
+    Trigger::timer(10, "ns").await;
+    c.set(0);
     Trigger::timer(1, "us").await;
     Ok(Val::None)
 }
@@ -34,31 +33,27 @@ async fn assertion_setup(dut: SimObject) -> RstbResult {
     sequence!("seq2", async move {
         Trigger::timer(7, "ns").await;
         SIM_IF.log("Seq2 returning");
-        Err(Val::None)
+        Ok(Val::None)
     });
 
     let c = dut.c("clk");
-    assertion!(async move {
-        Sequence::use_seq("seq0").await?;
-        Sequence::use_seq("seq1").await?;
-        Sequence::use_seq("seq2").await?;
-        Ok(Val::None)
-    }, vec![Trigger::edge(c)]);
-    run_all_assertions();
-
-    // let c = dut.c("clk");
-    // assertion!(async move {
-    //     match c.i32() {
-    //         0 => Val::Error,
-    //         _ => Val::None
-    //     }
-    // }, vec![Trigger::edge(c)]);
-    // run_all_assertions();
-
-
+    assertion_with_condition!(
+        "some_name",
+        async move {
+            Sequence::get("seq0").await?;
+            Sequence::get("seq1").await?;
+            Sequence::get("seq2").await?;
+            Ok(Val::None)
+        },
+        async move {
+            SIM_IF.log(&format!("clk = {}", dut.c("clk").u32()));
+            check!(dut.c("clk").u32() == 1)?;
+            Ok(Val::None)
+        },
+        vec![Trigger::edge(c)]
+    );
 
     Ok(Val::None)
 }
-
 
 rstb::run_with_vpi!(assertion_setup, test_default);

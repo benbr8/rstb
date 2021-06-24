@@ -1,30 +1,39 @@
-
-
 use crate::prelude::*;
 use crate::seamap::SeaMap;
-use futures::future::{Future, BoxFuture, select_all};
+use futures::future::{select_all, BoxFuture, Future};
 use lazy_mut::lazy_mut;
-
 
 lazy_mut! { pub static mut SEQUENCE_MAP: SeaMap<String, Sequence> = SeaMap::new(); }
 lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
 
-
 type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbResult>>>;
 
-
-
+#[macro_export]
+macro_rules! assertion_with_condition {
+    ($name: expr, $checker: expr, $condition: expr, $triggers: expr) => {
+        Assertion::try_add_assertion($name, move || $checker.boxed(), move || $condition.boxed(), $triggers);
+    };
+}
 #[macro_export]
 macro_rules! assertion {
-    ($i: expr, $j: expr) => {
-        Assertion::try_add_assertion(move || { $i.boxed() }, $j, stringify!($i));
-    }
+    ($name: expr, $checker: expr, $triggers: expr) => {
+        assertion_with_condition!($name, $checker, async move { Ok(Val::None) }.boxed(), $triggers);
+    };
+}
+#[macro_export]
+macro_rules! check {
+    ($bool: expr) => {
+        match $bool {
+            true => Ok(Val::None),
+            false => Err(Val::None),
+        }
+    };
 }
 #[macro_export]
 macro_rules! sequence {
     ($i: expr, $j: expr) => {
-        Sequence::try_add_sequence(move || { $j.boxed() }, $i);
-    }
+        Sequence::try_add_sequence(move || $j.boxed(), $i);
+    };
 }
 
 pub struct Sequence {
@@ -33,7 +42,10 @@ pub struct Sequence {
 }
 
 impl Sequence {
-    pub fn try_add_sequence(fut: impl Fn() -> BoxFuture<'static, RstbResult> + 'static, name: &str) {
+    pub fn try_add_sequence(
+        fut: impl Fn() -> BoxFuture<'static, RstbResult> + 'static,
+        name: &str,
+    ) {
         let seq = Self {
             name: name.to_string(),
             generator: RstbObj::new(Box::new(fut)),
@@ -58,35 +70,34 @@ impl Sequence {
             }
         }
     }
-    pub fn use_seq(name: &str) -> JoinHandle {
-        Task::fork(Sequence::get(name))
-    }
 }
-
 
 pub struct Assertion {
     name: String,
     enabled: bool,
     triggers: Vec<Trigger>,
-    generator: Generator,
+    condition: Generator,
+    checker: Generator,
     triggered: RstbObj<u32>,
     failed: RstbObj<u32>,
     passed: RstbObj<u32>,
 }
 
-impl Assertion
-{
+impl Assertion {
     #[allow(unreachable_code)]
     async fn run(&'static self) -> RstbResult {
         loop {
             // await trigger
             let mut trig_list = Vec::with_capacity(self.triggers.len());
             for trig in self.triggers.iter().cloned() {
-                trig_list.push(Task::fork(async move {trig.clone().await; SIM_IF.log("triggered!"); Ok(Val::None)}));
+                trig_list.push(Task::fork(async move {
+                    trig.clone().await;
+                    SIM_IF.log("triggered!");
+                    Ok(Val::None)
+                }));
             }
             // cancel remaining tasks. TODO: reuse without cancel + reschedule
             let (_, _, rem_vec) = select_all(trig_list).await;
-            self.trigger();
             SIM_IF.log("Select awaited.");
             for rem in rem_vec {
                 rem.cancel()
@@ -95,16 +106,16 @@ impl Assertion
 
             // run
             if self.enabled {
-                let a = (self.generator.get())();
-                let join_handle = Task::fork(async move {
-                    a.await
-                });
-                // update
-                Task::fork(async move {
-                    if join_handle.await.is_ok() {
-                        self.pass();
-                    } else {
-                        self.fail();
+                let condition = (self.condition.get())();
+                let checker = (self.checker.get())();
+                let _task = Task::fork(async move {
+                    condition.await?;
+                    self.trigger();
+                    let r = checker.await;
+                    SIM_IF.log(&format!("checker = {:?}", r));
+                    match r {
+                        Ok(_) => self.pass(),
+                        Err(_) => self.fail(),
                     }
                     Ok(Val::None)
                 });
@@ -112,12 +123,19 @@ impl Assertion
         }
         Ok(Val::None)
     }
-    pub fn try_add_assertion(fut: impl Fn() -> BoxFuture<'static, RstbResult> + 'static, triggers: Vec<Trigger>, name: &str) {
+    pub fn try_add_assertion(
+        name: &str,
+        checker: impl Fn() -> BoxFuture<'static, RstbResult> + 'static,
+        condition: impl Fn() -> BoxFuture<'static, RstbResult> + 'static,
+        triggers: Vec<Trigger>,
+    ) {
         let assertion = Self {
             name: name.to_string(),
             enabled: true,
             triggers,
-            generator: RstbObj::new(Box::new(fut)),
+            // condition: None,
+            condition: RstbObj::new(Box::new(condition)),
+            checker: RstbObj::new(Box::new(checker)),
             triggered: RstbObj::new(0),
             failed: RstbObj::new(0),
             passed: RstbObj::new(0),
@@ -143,10 +161,15 @@ impl Assertion
         }
     }
     pub fn result_str(&self) -> String {
-        format!("Assertion {}: Triggered: {}, Passed: {}, Failed: {}.", self.name, self.triggered.get(), self.passed.get(), self.failed.get())
+        format!(
+            "Assertion {}: Triggered: {}, Passed: {}, Failed: {}.",
+            self.name,
+            self.triggered.get(),
+            self.passed.get(),
+            self.failed.get()
+        )
     }
 }
-
 
 pub fn run_all_assertions() {
     unsafe {
