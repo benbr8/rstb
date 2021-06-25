@@ -64,6 +64,7 @@ async fn fail_after_1ms() -> RstbResult {
     Ok(Val::None)
 }
 
+#[allow(clippy::many_single_char_names)]
 pub async fn test_default(dut: SimObject) -> RstbResult {
     let tb = DffTb::new();
     let clk = dut.c("clk");
@@ -73,7 +74,7 @@ pub async fn test_default(dut: SimObject) -> RstbResult {
     // start clock
     let clock_task = Task::fork(clock(clk, 8, "ns"));
     // reset
-    reset(dut).await;
+    reset(dut).await?;
 
     Task::fork(d_stim(clk, d));
     Task::fork(tb.clone().monitor_in(clk, d));

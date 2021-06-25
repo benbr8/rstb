@@ -8,18 +8,18 @@ lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::ne
 
 type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbResult>>>;
 
-#[macro_export]
-macro_rules! assertion_with_condition {
-    ($name: expr, $checker: expr, $condition: expr, $triggers: expr) => {
-        Assertion::try_add_assertion($name, move || $checker.boxed(), move || $condition.boxed(), $triggers);
-    };
-}
-#[macro_export]
-macro_rules! assertion {
-    ($name: expr, $checker: expr, $triggers: expr) => {
-        assertion_with_condition!($name, $checker, async move { Ok(Val::None) }.boxed(), $triggers);
-    };
-}
+// #[macro_export]
+// macro_rules! assertion_with_condition {
+//     ($name: expr, $checker: expr, $condition: expr, $triggers: expr) => {
+//         Assertion::try_add_assertion($name, move || $checker.boxed(), move || $condition.boxed(), $triggers);
+//     };
+// }
+// #[macro_export]
+// macro_rules! assertion {
+//     ($name: expr, $checker: expr, $triggers: expr) => {
+//         assertion_with_condition!($name, $checker, async move { Ok(Val::None) }.boxed(), $triggers);
+//     };
+// }
 #[macro_export]
 macro_rules! check {
     ($bool: expr) => {
@@ -91,7 +91,7 @@ impl Assertion {
             let mut trig_list = Vec::with_capacity(self.triggers.len());
             for trig in self.triggers.iter().cloned() {
                 trig_list.push(Task::fork(async move {
-                    trig.clone().await;
+                    trig.await;
                     SIM_IF.log("triggered!");
                     Ok(Val::None)
                 }));
@@ -186,7 +186,7 @@ pub fn run_assertion(name: &str) {
             let fut = ASSERTION_MAP.get(name).unwrap().run();
             Task::fork(fut);
         } else {
-            panic!("Can't run assertion {}. Assertion not registered!", name);
+            panic!("Assertion {} not previously defined!", name);
         }
     }
 }

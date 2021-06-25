@@ -42,7 +42,8 @@ mod vhpi_user;
     clippy::upper_case_acronyms
 )]
 mod vpi_user;
-mod assertions;
+// mod assertions_old;
+mod assertion;
 
 use seamap::SeaMap;
 use executor::Task;
@@ -53,7 +54,7 @@ use sim_if::SIM_IF;
 use std::sync::Arc;
 use std::time;
 use value::Val;
-use assertions::print_assertion_stats;
+use assertion::print_assertion_stats;
 
 
 pub type MsgResult<T> = Result<T, String>;
@@ -110,6 +111,7 @@ pub fn fail_test(msg: &str) {
 }
 
 fn tear_down_test(test: Arc<Task>) {
+    assertion::tear_down_assertions();
     trigger::cancel_all_triggers();
     executor::clear_ready_queue();
     test.cancel();

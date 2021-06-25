@@ -10,5 +10,6 @@ pub use crate::vpi_init;
 pub use crate::vhpi_init;
 pub use crate::rstb_obj::RstbObj;
 pub use crate::value::Val;
-pub use crate::{pass_test, fail_test, init_test_result, combine, assertion, assertion_with_condition, check, sequence};
-pub use crate::assertions::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP, Sequence, SEQUENCE_MAP};
+pub use crate::{pass_test, fail_test, init_test_result, combine, add_assertion, check};
+// pub use crate::assertions::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP, Sequence, SEQUENCE_MAP};
+pub use crate::assertion::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP};
