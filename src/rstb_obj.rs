@@ -33,7 +33,7 @@ unsafe impl<T> Sync for RstbObj<T> {}
 
 
 // safe RustObj implementation, for if there appear issues with the unsafe one
-struct RstbObjSafe<T>(Arc<Mutex<T>>);
+pub struct RstbObjSafe<T>(Arc<Mutex<T>>);
 
 impl<T> RstbObjSafe<T> {
     pub fn new(data: T) -> RstbObjSafe<T> {

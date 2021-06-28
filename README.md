@@ -26,6 +26,7 @@ When comparing to Python, tests in Rust are more verbose and writing them is a b
 - [x] force / release signal values
 - [ ] vector slices and arrays
 - [x] joining multiple tasks
+- [x] concurrent assertions
 - [ ] documentation
 - [ ] a logging solution and some fancy output formatting
 - [ ] a nicer way to start tests from command line

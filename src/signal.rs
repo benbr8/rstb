@@ -1,4 +1,5 @@
 use lazy_mut::lazy_mut;
+use intmap::IntMap;
 
 use crate::seamap::SeaMap;
 use crate::sim_if::{ObjectKind, SIM_IF};
@@ -8,7 +9,7 @@ lazy_mut! {
     static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
 }
 lazy_mut! {
-    static mut SIG_MAP: SeaMap<usize, SimObject> = SeaMap::new();
+    static mut SIG_MAP: IntMap<SimObject> = IntMap::new();
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -61,7 +62,7 @@ impl SimObject {
 
     #[allow(clippy::clone_on_copy)]
     pub fn from_handle(handle: usize) -> SimpleResult<Self> {
-        if let Some(signal) = unsafe { SIG_MAP.get(&handle) } {
+        if let Some(signal) = unsafe { SIG_MAP.get(handle as u64) } {
             Ok(signal.clone())
         } else {
             Err(())
@@ -92,7 +93,7 @@ impl SimObject {
             signed: SIM_IF.is_signed(handle),
         };
         unsafe {
-            SIG_MAP.insert(handle, signal);
+            SIG_MAP.insert(handle as u64, signal);
             SIG_MAP_NAME.insert(signal.name(), handle);
         };
         signal

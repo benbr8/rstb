@@ -1,15 +1,17 @@
+pub use crate::assertion::{
+    disable_all_assertions, enable_all_assertions, print_assertion_stats, run_all_assertions,
+    Assertion, AssertionContext, ASSERTION_MAP,
+};
 pub use crate::executor::{JoinHandle, Task};
-pub use crate::trigger::Trigger;
+pub use crate::rstb_obj::{RstbObj, RstbObjSafe};
 pub use crate::signal::SimObject;
 pub use crate::sim_if::SIM_IF;
-pub use futures::future::FutureExt;
-pub use crate::{MsgResult, RstbResult, VecTestFn};
-#[cfg(feature = "vpi")]
-pub use crate::vpi_init;
+pub use crate::trigger::Trigger;
+pub use crate::value::Val;
 #[cfg(feature = "vhpi")]
 pub use crate::vhpi_init;
-pub use crate::rstb_obj::RstbObj;
-pub use crate::value::Val;
-pub use crate::{pass_test, fail_test, init_test_result, combine, add_assertion, check};
-// pub use crate::assertions::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP, Sequence, SEQUENCE_MAP};
-pub use crate::assertion::{print_assertion_stats, run_all_assertions, Assertion, ASSERTION_MAP};
+#[cfg(feature = "vpi")]
+pub use crate::vpi_init;
+pub use crate::{add_assertion, check, combine, fail_test, init_test_result, pass_test};
+pub use crate::{MsgResult, RstbResult, VecTestFn};
+pub use futures::future::FutureExt;

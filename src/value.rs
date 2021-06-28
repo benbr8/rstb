@@ -1,6 +1,6 @@
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Val {
     Int(u32),
     Signed(i32),

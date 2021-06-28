@@ -158,7 +158,7 @@ fn start_of_simulation() {
         if !unsafe { TEST_VEC.is_empty() } {
             join_handle = executor::Task::spawn_from_future(
                 async move {
-                    join_handle.await;
+                    let _ = join_handle.await;
                     let (test, name) = unsafe { TEST_VEC.remove(0) };
                     let test_handle = executor::Task::spawn_from_future(
                         async move {
@@ -173,7 +173,7 @@ fn start_of_simulation() {
                     unsafe {
                         CURRENT_TEST = Some((test_handle.get_task().unwrap(), name))
                     };
-                    test_handle.await;
+                    let _ = test_handle.await;
                     Ok(Val::None)
                 },
                 &format!("TEST_{}", j),
@@ -236,7 +236,6 @@ pub fn vpi_init(tests: VecTestFn) {
 
 #[no_mangle]
 extern "C" fn vpi_start_of_simulation(_cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
-    eprintln!("vpi_start_of_simulation");
     start_of_simulation();
     0
 }
