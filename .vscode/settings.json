@@ -2,7 +2,7 @@
     "rust-analyzer.linkedProjects": [
         "examples/verilog_types/Cargo.toml",
         "examples/dff/Cargo.toml",
-        "examples/experimental/Cargo.toml",
+        "examples/concurrent_assertions/Cargo.toml",
         "Cargo.toml"
     ]
 }
