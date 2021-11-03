@@ -1,5 +1,5 @@
 #!/bin/bash
-
+cargo build --release
 if [ -d ".sim_build" ]; then
 	rm -rf .sim_build
 fi

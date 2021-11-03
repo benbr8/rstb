@@ -47,7 +47,6 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 ### creating a Rstb test
 * Write test (see examples in this project)
 * compile as C compatible dynamic library by adding `crate-type = ["cdylib"]` to `Cargo.toml` as with the examples using `cargo build --release`.
-* Run with your favorite simulator
-  * see run_questa.sh/run_icarus.sh/run_cadence.sh
+* Run with your favorite simulator (see `run_questa.sh`/`run_icarus.sh`/`run_cadence.sh`)
 
 Run it on gitpod (using Icarus): https://gitpod.io/#https://github.com/benbr8/rstb
