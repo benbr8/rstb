@@ -50,4 +50,4 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 * Run with your favorite simulator
   * see run_questa.sh/run_icarus.sh/run_cadence.sh
 
-Run it on gitpod: https://gitpod.io/#https://github.com/benbr8/rstb
+Run it on gitpod (using Verilator): https://gitpod.io/#https://github.com/benbr8/rstb
