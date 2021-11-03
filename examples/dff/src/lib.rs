@@ -34,9 +34,7 @@ impl DffTb {
 async fn d_stim(clk: SimObject, d: SimObject) -> RstbResult {
     d.set(0);
     loop {
-        // SIM_IF.log("awaiting rising edge clk");
         Trigger::rising_edge(clk).await;
-        // SIM_IF.log("DONE awaiting rising edge clk");
         d.set((d.i32() + 1) % 2);
     }
     Ok(Val::None)
@@ -79,25 +77,9 @@ pub async fn test_default(dut: SimObject) -> RstbResult {
     Task::fork(d_stim(clk, d));
     Task::fork(tb.clone().monitor_in(clk, d));
     Task::fork(tb.clone().monitor_out(clk, q));
-    // Fail test after 1 ms, all triggers and tasks are shut down immediately.
-    // Task::fork(fail_after_1ms());
 
-    // use force() or force_bin() to force a signal value
-    dut.c("q").force_bin("0");
-
-    Trigger::timer(1, "ms").await;
-    // release forced signal
-    q.release();
-    Trigger::timer(2, "ms").await;
+    Trigger::timer(3, "ms").await;
     clock_task.cancel();
-
-    // using combine!()
-    SIM_IF.log("forking a, b, c");
-    let a = Task::fork(async {Trigger::timer(10, "ns").await; Ok(Val::Int(1))});
-    let b = Task::fork(async {Trigger::timer(20, "ns").await; Ok(Val::Int(2))});
-    let c = Task::fork(async {Trigger::timer(15, "ns").await; Ok(Val::Int(3))});
-    let d = combine!(a, b, c).await;
-    SIM_IF.log(&format!("combine!(a, b, c): {:?}", d));
 
     Trigger::timer(100, "ns").await;
     SIM_IF.log(tb.scoreboard.get().result().as_str());
@@ -114,6 +96,7 @@ async fn test_default2(_dut: SimObject) -> RstbResult {
     Ok(Val::None)
 }
 
-
-rstb::run_with_vpi!(test_default, test_default2);
+// Specify tests to be executed
+rstb::run_with_vpi!(test_default);
+// rstb::run_with_vpi!(test_default, test_default2);
 
