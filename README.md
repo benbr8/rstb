@@ -9,7 +9,7 @@ So why bother? Turns out Rust is ideally suited for this task. It
 * has an extensive and fast growing ecosysem of open source packages,
 * and on top is a blazingly fast compiled language with no runtime required.
 
-When comparing to Python, tests in Rust are more verbose and writing them is a bit more of a hassle because of the static typing and borrow checking, but test execution is **a lot** faster.
+When comparing to Python, tests in Rust are more verbose and writing them is a bit more of a hassle because of the static typing and borrow checking, but test execution is **a lot** faster (~80x speedup with simple D-Flipflop example).
 
 ### Current features
 - [x] Scheduling simulation callbacks through awaitable abstraction objects (Triggers)
@@ -50,4 +50,4 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 * Run with your favorite simulator
   * see run_questa.sh/run_icarus.sh/run_cadence.sh
 
-Run it on gitpod (using Verilator): https://gitpod.io/#https://github.com/benbr8/rstb
+Run it on gitpod (using Icarus): https://gitpod.io/#https://github.com/benbr8/rstb

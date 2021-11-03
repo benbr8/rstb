@@ -65,23 +65,23 @@ class DffTb:
 async def clock(clk, time_ns):
     half = time_ns / 2
     while True:
-        clk <= 0
+        clk.value = 0
         await Timer(half, "ns")
-        clk <= 1
+        clk.value = 1
         await Timer(half, "ns")
 
 
 async def d_stim(clk, d):
-    d <= 0
+    d.value = 0
     while True:
         await RisingEdge(clk)
-        d <= (int(d) + 1) % 2
+        d.value = (int(d) + 1) % 2
 
 async def reset(dut):
-    dut.rstn <= 0
+    dut.rstn.value = 0
     for _ in range(10):
         await RisingEdge(dut.clk)
-    dut.rstn <= 1
+    dut.rstn.value = 1
     for _ in range(10):
         await RisingEdge(dut.clk)
 
