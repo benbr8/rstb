@@ -105,7 +105,7 @@ impl AssertionContext {
     }
     pub fn fell(&self, sig: SimObject) -> bool {
         sig.u32() == 0 && self.sig_hist(sig, 1) != Val::Int(0)
-    }
+    } 
     pub fn stable(&self, sig: SimObject) -> bool {
         self.sig_hist(sig, 1) == Val::Int(sig.u32())
     }
@@ -250,6 +250,7 @@ impl Assertion {
 
 pub fn run_all_assertions() {
     unsafe {
+        ASSERTION_MAP.init();
         for (_, assertion) in ASSERTION_MAP.iter() {
             let fut = assertion.run();
             Task::fork(fut);
@@ -258,6 +259,7 @@ pub fn run_all_assertions() {
 }
 pub fn disable_all_assertions() {
     unsafe {
+        ASSERTION_MAP.init();
         for (_, assertion) in ASSERTION_MAP.iter() {
             assertion.disable()
         }
@@ -265,6 +267,7 @@ pub fn disable_all_assertions() {
 }
 pub fn enable_all_assertions() {
     unsafe {
+        ASSERTION_MAP.init();
         for (_, assertion) in ASSERTION_MAP.iter() {
             assertion.enable()
         }
@@ -273,6 +276,7 @@ pub fn enable_all_assertions() {
 
 pub fn run_assertion(name: &str) {
     unsafe {
+        ASSERTION_MAP.init();
         if ASSERTION_MAP.contains_key(name) {
             let fut = ASSERTION_MAP.get(name).unwrap().run();
             Task::fork(fut);
@@ -284,6 +288,7 @@ pub fn run_assertion(name: &str) {
 
 pub(crate) fn tear_down_assertions() {
     unsafe {
+        ASSERTION_MAP.init();
         for (_, a) in ASSERTION_MAP.iter() {
             // Future will be dropped, once all references (`Trigger`s, `JoinHandle`s) are dropped
             a.ctx.hist_mut().task_hdl.take();
