@@ -1,9 +1,9 @@
 use lazy_mut::lazy_mut;
 use intmap::IntMap;
-
 use crate::seamap::SeaMap;
 use crate::sim_if::{ObjectKind, SIM_IF};
 use crate::SimpleResult;
+use crate::trigger::Trigger;
 
 lazy_mut! {
     static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
@@ -21,7 +21,6 @@ pub struct SimObject {
 }
 
 impl SimObject {
-
     pub fn handle(&self) -> usize {
         self.handle
     }
@@ -126,6 +125,7 @@ impl SimObject {
             panic!("Couldn't get value of {} as i32 type.", self.name());
         }
     }
+
     pub fn u32(&self) -> u32 {
         if matches!(self.kind, ObjectKind::Bits) && self.size <= 32 {
             let val = SIM_IF.get_value_int(self.handle()).unwrap() as i64;
@@ -139,57 +139,73 @@ impl SimObject {
             panic!("Couldn't get value of {} as u32 type.", self.name());
         }
     }
+
     pub fn bin(&self) -> String {
         SIM_IF.get_value_bin(self.handle).unwrap()
     }
+
     pub fn c(&self, name: &str) -> Self {
         self.get_child(name)
             .unwrap_or_else(|_| panic!("Could not get object with name {}.{}", self.name(), name))
     }
+
     pub fn release(&self) {
         SIM_IF.release(self.handle).unwrap();
     }
+
     pub fn set(&self, val: i32) {
         self._set(val, false);
     }
+
     pub fn force(&self, val: i32) {
         self._set(val, true);
     }
+
     #[inline]
     fn _set(&self, val: i32, force: bool) {
         if !matches!(self.kind, ObjectKind::Bits) {
-            panic!("Can't set signal {} of kind {:?} using set() or set_u32()", self.name(), self.kind);
+            panic!(
+                "Can't set signal {} of kind {:?} using set() or set_u32()",
+                self.name(),
+                self.kind
+            );
         }
         SIM_IF.set_value_int(self.handle, val, force).unwrap();
     }
+
     pub fn set_u32(&self, val: u32) {
         self._set_u32(val, false)
     }
+
     pub fn force_u32(&self, val: u32) {
         self._set_u32(val, true)
     }
+
     #[inline]
     fn _set_u32(&self, val: u32, force: bool) {
         if val >= 1 << 31 {
-            let val_i32: i32 = unsafe{std::mem::transmute(val)};
+            let val_i32: i32 = unsafe { std::mem::transmute(val) };
             self._set(val_i32, force);
         } else {
             self._set(val as i32, force);
         }
     }
+
     pub fn set_bin(&self, val: &str) {
         self._set_bin(val, false)
     }
+
     pub fn force_bin(&self, val: &str) {
         self._set_bin(val, true)
     }
+
     #[inline]
     fn _set_bin(&self, val: &str, force: bool) {
         // remove '_' and 0b
         let stripped = val.replace("0b", "");
         let stripped = stripped.replace("_", "");
         if stripped.len() == self.size as usize {
-            let is_valid = stripped.chars().all(|c| {valid_char(c)});
+            let is_valid = stripped.chars().all(|c| valid_char(c));
             if is_valid {
                 SIM_IF.set_value_bin(self.handle, stripped, force).unwrap();
             } else {
@@ -198,6 +214,17 @@ impl SimObject {
         } else {
             panic!("Can't set {} to {}. Length mismatch.", self.name(), val);
         }
+    }
+
+    // convenience functions to get edge triggers for this signal
+    pub fn rising_edge(self) -> Trigger {
+        Trigger::rising_edge(self)
+    }
+    pub fn falling_edge(self) -> Trigger {
+        Trigger::falling_edge(self)
+    }
+    pub fn edge(self) -> Trigger {
+        Trigger::edge(self)
     }
 }
 

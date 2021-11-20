@@ -1,13 +1,16 @@
+use intmap::IntMap;
 use lazy_mut::lazy_mut;
+use std::collections::VecDeque;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll, Waker};
-use std::mem::replace;
-use intmap::IntMap;
-use std::collections::VecDeque;
 
 use crate::executor;
-use crate::{value::Val, signal::SimObject, sim_if::{SimCallback, SIM_IF}};
+use crate::{
+    signal::SimObject,
+    sim_if::{SimCallback, SIM_IF},
+    value::Val,
+};
 
 lazy_mut! {
     // IntMap specializes on u64 keys and is faster than even SeaMap
@@ -27,7 +30,7 @@ lazy_mut! {
 
 struct CallbackHandles {
     handle: Option<usize>,
-    callbacks: VecDeque<TrigShared>
+    callbacks: VecDeque<TrigShared>,
 }
 
 #[derive(PartialEq, Clone, Copy, Debug)]
@@ -67,7 +70,7 @@ pub struct TrigShared {
     waker: Waker,
     // If trigger is an edge, the react method needs to know if it is a rising or falling edge
     // so an existing callback does not have to be rescheduled.
-    edge_kind: Option<EdgeKind>,
+    edge_kind: EdgeKind,
 }
 
 #[derive(Clone)]
@@ -162,58 +165,62 @@ impl Future for Trigger {
             // initialize new Trigger
             let mut shared = TrigShared {
                 waker: cx.waker().clone(),
-                edge_kind: None,
+                edge_kind: EdgeKind::Any,
             };
 
             match self.kind {
-                TrigKind::ReadWrite => {
-                    unsafe {
-                        READ_WRITE.callbacks.push_back(shared);
-                        if READ_WRITE.handle.is_none() {
-                            let cb = SimCallback::ReadWrite;
-                            let cb_hdl = SIM_IF.register_callback(cb).unwrap();
-                            READ_WRITE.handle.replace(cb_hdl);
-                        }
+                TrigKind::ReadWrite => unsafe {
+                    READ_WRITE.callbacks.push_back(shared);
+                    if READ_WRITE.handle.is_none() {
+                        let cb = SimCallback::ReadWrite;
+                        let cb_hdl = SIM_IF.register_callback(cb).unwrap();
+                        READ_WRITE.handle.replace(cb_hdl);
                     }
                 },
-                TrigKind::ReadOnly => {
-                    unsafe {
-                        match self.high_exec_prio {
-                            false => READ_ONLY.callbacks.push_back(shared),
-                            true => READ_ONLY.callbacks.push_front(shared),
-                        }
-                        if READ_ONLY.handle.is_none() {
-                            let cb = SimCallback::ReadOnly;
-                            let cb_hdl = SIM_IF.register_callback(cb).unwrap();
-                            READ_ONLY.handle.replace(cb_hdl);
-                        }
+                TrigKind::ReadOnly => unsafe {
+                    match self.high_exec_prio {
+                        false => READ_ONLY.callbacks.push_back(shared),
+                        true => READ_ONLY.callbacks.push_front(shared),
+                    }
+                    if READ_ONLY.handle.is_none() {
+                        let cb = SimCallback::ReadOnly;
+                        let cb_hdl = SIM_IF.register_callback(cb).unwrap();
+                        READ_ONLY.handle.replace(cb_hdl);
                     }
                 },
                 TrigKind::Timer(t) => {
                     // Add current time to key since since simulator will send back absolute time, not delta
                     let abs_time = t + SIM_IF.get_sim_time_steps();
-                    if let Some(callbacks) = unsafe{TIMER_MAP.get_mut(abs_time)} {
+                    if let Some(callbacks) = unsafe { TIMER_MAP.get_mut(abs_time) } {
                         callbacks.callbacks.push_back(shared);
                     } else {
                         let handle = SIM_IF.register_callback(SimCallback::Time(t)).unwrap();
                         let mut vec = VecDeque::new();
                         vec.push_back(shared);
-                        let callback = CallbackHandles { handle: Some(handle), callbacks: vec };
-                        unsafe{TIMER_MAP.insert(abs_time, callback)};
+                        let callback = CallbackHandles {
+                            handle: Some(handle),
+                            callbacks: vec,
+                        };
+                        unsafe { TIMER_MAP.insert(abs_time, callback) };
                     }
-                },
+                }
                 TrigKind::Edge(sig_hdl, edge_kind) => {
-                    shared.edge_kind = Some(edge_kind);
-                    if let Some(callbacks) = unsafe{EDGE_MAP.get_mut(sig_hdl as u64)} {
+                    shared.edge_kind = edge_kind;
+                    if let Some(callbacks) = unsafe { EDGE_MAP.get_mut(sig_hdl as u64) } {
                         // vpi::log("Callback already exists. Appending.");
                         callbacks.callbacks.push_back(shared);
                     } else {
                         // vpi::log("Registering callback.");
-                        let handle = SIM_IF.register_callback(SimCallback::Edge(sig_hdl)).unwrap();
+                        let handle = SIM_IF
+                            .register_callback(SimCallback::Edge(sig_hdl))
+                            .unwrap();
                         let mut vec = VecDeque::new();
                         vec.push_back(shared);
-                        let callback = CallbackHandles { handle: Some(handle), callbacks: vec };
-                        unsafe{EDGE_MAP.insert(sig_hdl as u64, callback)};
+                        let callback = CallbackHandles {
+                            handle: Some(handle),
+                            callbacks: vec,
+                        };
+                        unsafe { EDGE_MAP.insert(sig_hdl as u64, callback) };
                     }
                 }
             }
@@ -230,48 +237,46 @@ pub fn react(cb: SimCallback, edge: Option<EdgeKind>) {
     match cb {
         SimCallback::ReadWrite => {
             unsafe {
-                READ_WRITE.handle = None;  // remove handle, since CB is now done
+                READ_WRITE.handle = None; // remove handle, since CB is now done
                 if !READ_WRITE.callbacks.is_empty() {
-                    vec_wake = Some(replace(&mut READ_WRITE.callbacks, VecDeque::new()));
+                    vec_wake = Some(std::mem::take(&mut READ_WRITE.callbacks));
                 } else {
                     panic!("Did not expect ReadWrite callback");
                 }
             }
-        },
+        }
         SimCallback::ReadOnly => {
             unsafe {
-                READ_ONLY.handle = None;  // remove handle, since CB is now done
+                READ_ONLY.handle = None; // remove handle, since CB is now done
                 if !READ_ONLY.callbacks.is_empty() {
-                    vec_wake = Some(replace(&mut READ_ONLY.callbacks, VecDeque::new()));
+                    vec_wake = Some(std::mem::take(&mut READ_ONLY.callbacks));
                 } else {
                     panic!("Did not expect ReadOnly callback");
                 }
             }
-        },
+        }
         SimCallback::Time(t) => {
             // SIM_IF.log(&format!("Reacting to Timer CB: t={}", t));
-            if let Some(callbacks) = unsafe{TIMER_MAP.remove(t)} {
+            if let Some(callbacks) = unsafe { TIMER_MAP.remove(t) } {
                 vec_wake = Some(callbacks.callbacks);
             } else {
                 panic!("Did not expect Timer callback: t={}", t);
             }
-        },
+        }
         SimCallback::Edge(sig_hdl) => {
             // vpi::log("Reacting to Edge callback.");
-            let callbacks = unsafe{EDGE_MAP.remove(sig_hdl as u64)};
+            let callbacks = unsafe { EDGE_MAP.remove(sig_hdl as u64) };
             if let Some(mut callbacks) = callbacks {
                 let edge = edge.unwrap();
                 match edge {
                     EdgeKind::Any => {
-                        vec_wake = Some(replace(&mut callbacks.callbacks, VecDeque::new()));
-                    },
+                        vec_wake = Some(std::mem::take(&mut callbacks.callbacks));
+                    }
                     _ => {
                         let mut vec_resched: VecDeque<TrigShared> = VecDeque::new();
                         let mut vec_wake_tmp: VecDeque<TrigShared> = VecDeque::new();
                         for trig in callbacks.callbacks.drain(..) {
-                            if trig.edge_kind.unwrap() == EdgeKind::Any
-                                || trig.edge_kind.unwrap() == edge
-                            {
+                            if trig.edge_kind == EdgeKind::Any || trig.edge_kind == edge {
                                 // vpi::log("Trigger will be woken.");
                                 // Trigger will be woken
                                 vec_wake_tmp.push_back(trig);
@@ -289,13 +294,12 @@ pub fn react(cb: SimCallback, edge: Option<EdgeKind>) {
                             // put rescheduled callbacks back into EDGE_MAP
                             // vpi::log("put rescheduled callbacks back into EDGE_MAP");
                             callbacks.callbacks = vec_resched;
-                            unsafe{EDGE_MAP.insert(sig_hdl as u64, callbacks)};
+                            unsafe { EDGE_MAP.insert(sig_hdl as u64, callbacks) };
                         }
                         if !vec_wake_tmp.is_empty() {
                             // vpi::log(&format!("Waking callbacks: n={}", vec_wake_tmp.len()));
                             vec_wake = Some(vec_wake_tmp);
                         }
-
                     }
                 }
             } else {

@@ -17,6 +17,7 @@ intmap = "*"
 queues = "*"
 lazy_mut = "*"
 num-format = "*"
+rand = "*"
 
 [features]
 default = ["vpi"]

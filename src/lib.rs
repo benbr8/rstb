@@ -3,29 +3,13 @@ pub mod prelude;
 mod seamap;
 pub mod signal;
 pub mod trigger;
-
+pub mod rstb_obj;
+pub mod value;
+mod assertion;
 pub mod sim_if;
+pub mod utils;
 #[cfg(feature = "vhpi")]
 mod vhpi;
-#[cfg(feature = "vpi")]
-#[allow(
-    non_upper_case_globals,
-    dead_code,
-    non_camel_case_types,
-    clippy::upper_case_acronyms
-)]
-pub mod vpi;
-
-pub mod rstb_obj;
-#[cfg(feature = "vpi")]
-#[allow(
-    non_upper_case_globals,
-    dead_code,
-    non_camel_case_types,
-    clippy::upper_case_acronyms
-)]
-pub mod sv_vpi_user;
-pub mod value;
 #[cfg(feature = "vhpi")]
 #[allow(
     non_upper_case_globals,
@@ -41,9 +25,24 @@ mod vhpi_user;
     non_camel_case_types,
     clippy::upper_case_acronyms
 )]
+pub mod vpi;
+
+#[cfg(feature = "vpi")]
+#[allow(
+    non_upper_case_globals,
+    dead_code,
+    non_camel_case_types,
+    clippy::upper_case_acronyms
+)]
+pub mod sv_vpi_user;
+#[cfg(feature = "vpi")]
+#[allow(
+    non_upper_case_globals,
+    dead_code,
+    non_camel_case_types,
+    clippy::upper_case_acronyms
+)]
 mod vpi_user;
-// mod assertions_old;
-mod assertion;
 
 use seamap::SeaMap;
 use executor::Task;

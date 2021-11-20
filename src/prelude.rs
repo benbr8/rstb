@@ -8,6 +8,7 @@ pub use crate::signal::SimObject;
 pub use crate::sim_if::SIM_IF;
 pub use crate::trigger::Trigger;
 pub use crate::value::Val;
+pub use crate::utils;
 #[cfg(feature = "vhpi")]
 pub use crate::vhpi_init;
 #[cfg(feature = "vpi")]
