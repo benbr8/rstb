@@ -14,11 +14,11 @@ module fifo_fwft
     input                   rd_en,
     output                  empty);
 
-    initial begin
-        $dumpfile ("fifo_fwft.vcd");
-        $dumpvars (0, fifo_fwft);
-        #1;
-    end
+    // initial begin
+    //     $dumpfile ("fifo_fwft.vcd");
+    //     $dumpvars (0, fifo_fwft);
+    //     #1;
+    // end
 
     wire full_int;
     wire empty_int;

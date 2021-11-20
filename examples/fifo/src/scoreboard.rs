@@ -49,7 +49,14 @@ where
         }
     }
 
-    pub fn result(&self) -> String {
+    pub fn result(&self) -> RstbResult {
+        match self.passed() {
+            true => Ok(Val::String(self.result_str())),
+            false => Err(Val::String(self.result_str())),
+        }
+    }
+
+    pub fn result_str(&self) -> String {
         format!(
             "expected={}, received={}, matched={}, errors={}, expQ: {}, recvQ: {}",
             self.expected,
@@ -72,9 +79,9 @@ where
 
     pub fn pass_or_fail(&self) {
         if self.passed() {
-            pass_test(&self.result());
+            pass_test(&self.result_str());
         } else {
-            fail_test(&self.result())
+            fail_test(&self.result_str())
         }
     }
 }

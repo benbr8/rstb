@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use crate::seamap::SeaMap;
-use futures::future::{select_all, BoxFuture, Future};
+use futures::future::BoxFuture;
 use intmap::IntMap;
 use lazy_mut::lazy_mut;
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::{Ref, RefMut};
 use std::collections::VecDeque;
 
 // lazy_mut! { pub static mut SEQUENCE_MAP: SeaMap<String, Sequence> = SeaMap::new(); }
@@ -87,7 +87,7 @@ impl AssertionContext {
         self.0.trigger.clone()
     }
     pub fn dut(&self) -> SimObject {
-        self.0.dut.clone()
+        self.0.dut
     }
     pub fn sig_hist(&self, sig: SimObject, clocks: usize) -> Val {
         let hist_ref = self.hist();
@@ -105,7 +105,7 @@ impl AssertionContext {
     }
     pub fn fell(&self, sig: SimObject) -> bool {
         sig.u32() == 0 && self.sig_hist(sig, 1) != Val::Int(0)
-    } 
+    }
     pub fn stable(&self, sig: SimObject) -> bool {
         self.sig_hist(sig, 1) == Val::Int(sig.u32())
     }
@@ -125,18 +125,6 @@ pub struct Assertion {
     ctx: AssertionContext,
     stats: RstbObj<Stats>,
 }
-
-// impl Default for Assertion {
-//     fn default() -> Self {
-//         Assertion {
-//             name: "default".to_string(),
-//             enabled: RstbObj::new(true),
-//             condition: RstbObj::new(Box::new(move || async move { Ok(Val::None) }.boxed())),
-//             checker: RstbObj::new(Box::new(move || async move { Ok(Val::None) }.boxed())),
-
-//         }
-//     }
-// }
 
 impl Assertion {
     #[allow(unreachable_code)]
@@ -240,11 +228,19 @@ impl Assertion {
         *self.enabled.get_mut() = false;
     }
     pub fn result_str(&self) -> String {
-        let stats = self.stats.get_mut();
+        let stats = self.stats.get();
         format!(
             "Assertion {}: Triggered: {}, Passed: {}, Failed: {}.",
             self.name, stats.triggered, stats.passed, stats.failed
         )
+    }
+    pub fn result(&self) -> RstbResult {
+        let s = self.stats.get();
+        if s.triggered == s.passed && s.failed == 0 {
+            Ok(Val::None)
+        } else {
+            Err(Val::None)
+        }
     }
 }
 

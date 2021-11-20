@@ -1,9 +1,10 @@
 use lazy_mut::lazy_mut;
 use intmap::IntMap;
-use crate::seamap::SeaMap;
+use crate::{RstbResult, seamap::SeaMap};
 use crate::sim_if::{ObjectKind, SIM_IF};
 use crate::SimpleResult;
 use crate::trigger::Trigger;
+use crate::value::Val;
 
 lazy_mut! {
     static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
@@ -219,6 +220,11 @@ impl SimObject {
     // convenience functions to get edge triggers for this signal
     pub fn rising_edge(self) -> Trigger {
         Trigger::rising_edge(self)
+    }
+    pub async fn rising_edge_ro(self) -> RstbResult {
+        self.rising_edge().await;
+        Trigger::read_only().await;
+        Ok(Val::None)
     }
     pub fn falling_edge(self) -> Trigger {
         Trigger::falling_edge(self)

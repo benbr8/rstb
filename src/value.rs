@@ -7,6 +7,7 @@ pub enum Val {
     Float(f32),
     BitStr(String),
     Vec(Vec<Val>),
+    String(String),
     None,
     Error,
     // .. tbd

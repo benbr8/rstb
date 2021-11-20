@@ -162,8 +162,8 @@ fn start_of_simulation() {
                     let test_handle = executor::Task::spawn_from_future(
                         async move {
                             match (test)(sim_root).await {
-                                Ok(_) => pass_test(""),
-                                Err(_) => fail_test(""),
+                                Ok(val) => pass_test(&format!("{:?}", val)),
+                                Err(val) => fail_test(&format!("{:?}", val)),
                             }
                             Ok(Val::None)
                         },
@@ -202,7 +202,7 @@ fn end_of_simulation() {
         if passed {
             result = "Passed";
         }
-        SIM_IF.log(&format!("Result of test {}: {}(\"{}\")", name, result, msg));
+        SIM_IF.log(&format!("Result of test {}: {}({})", name, result, msg));
     }
 
 }
