@@ -12,19 +12,19 @@ So why bother? Turns out Rust is ideally suited for this task. It
 When comparing to Python, tests in Rust are more verbose and writing them is a bit more of a hassle because of the static typing and borrow checking, but test execution is **a lot** faster (~80x speedup with simple D-Flipflop example).
 
 ### Current features
-- [x] Scheduling simulation callbacks through awaitable abstraction objects (Triggers)
+- [x] Scheduling simulation callbacks through awaitable abstraction objects (`Trigger`s)
 - [x] Runtime to manage scheduling, forking, joining and cancelling of concurrent tasks
 - [x] Traversing simulation object hierarchy
 - [x] Getting and setting simulation object values
+- [x] Forcing / releasing signal values
 - [x] Macro for easily embedding user level tests
+- [x] Means to pass/fail a test
+- [x] Joining multiple tasks
+- [x] Concurrent assertions built on top of the base library incl. signal history lookup
 
 ### Feature roadmap
-- [x] means to pass/fail a test
 - [ ] add support for real types.
-- [x] force / release signal values
 - [ ] vector slices and arrays
-- [x] joining multiple tasks
-- [x] concurrent assertions
 - [ ] documentation
 - [ ] a logging solution and some fancy output formatting
 - [ ] a nicer way to start tests from command line
@@ -37,7 +37,7 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 
 ### Not on the roadmap
 * Windows (although it shouldn't be a big issue)
-* Mentor/Siemens FLI
+* Mentor/Siemens Foreign language interface
 
 ### Rstb works with
 * Questa/ModelSim
