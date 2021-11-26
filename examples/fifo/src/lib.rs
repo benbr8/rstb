@@ -58,7 +58,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 
     Trigger::timer(1, "us").await;
 
-    tb.clone().scoreboard.get().result()
+    tb.clone().scoreboard.result()
 }
 
 // Specify tests to be executed

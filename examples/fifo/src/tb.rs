@@ -46,7 +46,7 @@ impl MemModel {
 
 #[derive(Clone)]
 pub struct FifoTb {
-    pub scoreboard: RstbObj<Scoreboard<u32>>,
+    pub scoreboard: Scoreboard<u32>,
     dut: SimObject,
     clk: SimObject,
 }
@@ -54,7 +54,7 @@ pub struct FifoTb {
 impl FifoTb {
     pub fn new(dut: SimObject) -> Self {
         let tb = Self {
-            scoreboard: RstbObj::new(Scoreboard::new()),
+            scoreboard: Scoreboard::new(),
             dut,
             clk: dut.c("clk"),
         };
@@ -95,7 +95,7 @@ impl FifoTb {
             Trigger::read_only().await;
             if wr_en.u32() == 1 && full.u32() == 0 {
                 // SIM_IF.log(&format!("Adding expected to scoreboard: {}", dut.c("din").u32()));
-                self.scoreboard.get_mut().add_exp(din.u32());
+                self.scoreboard.add_exp(din.u32());
             }
         }
         Ok(Val::None)
@@ -110,7 +110,7 @@ impl FifoTb {
             Trigger::read_only().await;
             if rd_en.u32() == 1 && empty.u32() == 0 {
                 // SIM_IF.log(&format!("Adding received to scoreboard: {}", dut.c("dout").u32()));
-                self.scoreboard.get_mut().add_recv(dout.u32());
+                self.scoreboard.add_recv(dout.u32());
             }
         }
         Ok(Val::None)
