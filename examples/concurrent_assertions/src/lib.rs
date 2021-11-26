@@ -1,3 +1,4 @@
+#![allow(unreachable_code, unused_must_use)]
 use rstb::prelude::*;
 use rand::{Rng, thread_rng};
 
@@ -49,7 +50,12 @@ async fn assertion_setup(dut: SimObject) -> RstbResult {
         "check_consequence",                                // name
         Trigger::rising_edge(dut.c("clk")),                 // trigger
         async move { check!(dut.c("req").u32() == 1) },     // condition
-        ack_after_3                                         // checking function
+        move |ctx: AssertionContext| { async move {         // checking function
+            for _ in 0..3 {
+                ctx.trig().await;
+            }
+            Ok(Val::None)
+        }}
     );
     add_assertion! (
         "check_history",
@@ -60,15 +66,6 @@ async fn assertion_setup(dut: SimObject) -> RstbResult {
         3                                                   // depth of history
     );
     Ok(Val::None)
-}
-
-async fn ack_after_3(ctx: AssertionContext) -> RstbResult {
-    let dut = ctx.dut();
-    for _ in 0..3 {
-        ctx.trig().await;
-    }
-    Trigger::read_only().await;
-    check!(dut.c("ack").u32() == 1)
 }
 
 async fn req_3_before(ctx: AssertionContext) -> RstbResult {

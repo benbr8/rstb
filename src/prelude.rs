@@ -14,5 +14,5 @@ pub use crate::vhpi_init;
 #[cfg(feature = "vpi")]
 pub use crate::vpi_init;
 pub use crate::{add_assertion, check, combine, fail_test, init_test_result, pass_test};
-pub use crate::{MsgResult, RstbResult, VecTestFn};
+pub use crate::{RstbResult, VecTestFn};
 pub use futures::future::FutureExt;

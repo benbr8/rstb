@@ -6,7 +6,6 @@ use lazy_mut::lazy_mut;
 use std::cell::{Ref, RefMut};
 use std::collections::VecDeque;
 
-// lazy_mut! { pub static mut SEQUENCE_MAP: SeaMap<String, Sequence> = SeaMap::new(); }
 lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
 
 type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbResult>>>;

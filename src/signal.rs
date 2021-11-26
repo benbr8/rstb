@@ -1,3 +1,5 @@
+#![allow(clippy::result_unit_err)]
+
 use lazy_mut::lazy_mut;
 use intmap::IntMap;
 use crate::{RstbResult, seamap::SeaMap};
@@ -70,10 +72,8 @@ impl SimObject {
     }
 
     pub fn from_name(full_name: &str) -> SimpleResult<Self> {
-        let handle = match unsafe { SIG_MAP_NAME.get(full_name) } {
-            Some(h) => Some(h.to_owned()),
-            _ => None,
-        };
+        let handle = unsafe { SIG_MAP_NAME.get(full_name) }
+            .map(|h| h.to_owned());
         match handle {
             Some(h) => SimObject::from_handle(h),
             _ => Ok(SimObject::new_from_name(full_name)?),
@@ -206,7 +206,7 @@ impl SimObject {
         let stripped = val.replace("0b", "");
         let stripped = stripped.replace("_", "");
         if stripped.len() == self.size as usize {
-            let is_valid = stripped.chars().all(|c| valid_char(c));
+            let is_valid = stripped.chars().all(valid_char);
             if is_valid {
                 SIM_IF.set_value_bin(self.handle, stripped, force).unwrap();
             } else {
@@ -224,6 +224,11 @@ impl SimObject {
     pub async fn rising_edge_ro(self) -> RstbResult {
         self.rising_edge().await;
         Trigger::read_only().await;
+        Ok(Val::None)
+    }
+    pub async fn rising_edge_rw(self) -> RstbResult {
+        self.rising_edge().await;
+        Trigger::read_write().await;
         Ok(Val::None)
     }
     pub fn falling_edge(self) -> Trigger {
