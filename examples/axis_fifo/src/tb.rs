@@ -48,27 +48,27 @@ impl MemModel {
 pub struct AxisMonitor {
     pub mon: Monitor<u32>,
     clk: SimObject,
-    valid: SimObject,
-    ready: SimObject,
-    data: SimObject,
+    tvalid: SimObject,
+    tready: SimObject,
+    tdata: SimObject,
 }
 
 impl AxisMonitor {
-    pub fn new(clk: SimObject, valid: SimObject, ready: SimObject, data: SimObject) -> Self {
+    pub fn new(clk: SimObject, tvalid: SimObject, tready: SimObject, tdata: SimObject) -> Self {
         Self {
             mon: Monitor::new(),
             clk,
-            valid,
-            ready,
-            data,
+            tvalid,
+            tready,
+            tdata,
         }
     }
 
     pub async fn run(self) -> RstbResult {
         loop {
             self.clk.rising_edge_ro().await;
-            if self.valid.u32() == 1 && self.ready.u32() == 0 {
-                self.mon.to_scoreboard(self.data.u32());
+            if self.tvalid.u32() == 1 && self.tready.u32() == 1 {
+                self.mon.to_scoreboard(self.tdata.u32());
             }
         }
         Ok(Val::None)
@@ -89,8 +89,8 @@ impl FifoTb {
         let tb = Self {
             scoreboard: Scoreboard::new(),
             dut,
-            mon_in: AxisMonitor::new(dut.c("clk"), dut.c("wr_en"), dut.c("full"), dut.c("din")),
-            mon_out: AxisMonitor::new(dut.c("clk"), dut.c("rd_en"), dut.c("empty"), dut.c("dout")),
+            mon_in: AxisMonitor::new(dut.c("clk"), dut.c("s_tvalid"), dut.c("s_tready"), dut.c("s_tdata")),
+            mon_out: AxisMonitor::new(dut.c("clk"), dut.c("m_tvalid"), dut.c("m_tready"), dut.c("m_tdata")),
             clk: dut.c("clk"),
         };
         tb.mon_in.mon.set_scoreboard(tb.scoreboard, true);
@@ -102,14 +102,12 @@ impl FifoTb {
     }
 
     pub async fn reset(&self) -> RstbResult {
-        let rst = self.dut.c("rst");
-
-        self.clk.rising_edge().await;
-        self.dut.c("wr_en").set(0);
-        self.dut.c("rd_en").set(0);
-        rst.set(1);
+        self.clk.rising_edge_rw().await;
+        self.dut.c("s_tvalid").set(0);
+        self.dut.c("m_tready").set(0);
+        self.dut.c("rst").set(1);
         utils::clock_cycles(self.clk, 10).await;
-        rst.set(0);
+        self.dut.c("rst").set(0);
         utils::clock_cycles(self.clk, 2).await;
         Ok(Val::None)
     }
@@ -124,34 +122,4 @@ impl FifoTb {
         }
         Ok(Val::None)
     }
-
-    // pub async fn write_mon(self) -> RstbResult {
-    //     let wr_en = self.dut.c("wr_en");
-    //     let full = self.dut.c("full");
-    //     let din = self.dut.c("din");
-    //     loop {
-    //         self.clk.rising_edge().await;
-    //         Trigger::read_only().await;
-    //         if wr_en.u32() == 1 && full.u32() == 0 {
-    //             // SIM_IF.log(&format!("Adding expected to scoreboard: {}", dut.c("din").u32()));
-    //             self.scoreboard.add_exp(din.u32());
-    //         }
-    //     }
-    //     Ok(Val::None)
-    // }
-
-    // pub async fn read_mon(self) -> RstbResult {
-    //     let rd_en = self.dut.c("rd_en");
-    //     let empty = self.dut.c("empty");
-    //     let dout = self.dut.c("dout");
-    //     loop {
-    //         self.clk.rising_edge().await;
-    //         Trigger::read_only().await;
-    //         if rd_en.u32() == 1 && empty.u32() == 0 {
-    //             // SIM_IF.log(&format!("Adding received to scoreboard: {}", dut.c("dout").u32()));
-    //             self.scoreboard.add_recv(dout.u32());
-    //         }
-    //     }
-    //     Ok(Val::None)
-    // }
 }

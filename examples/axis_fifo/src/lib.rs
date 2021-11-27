@@ -8,7 +8,7 @@ use rstb::prelude::*;
 
 async fn rd_en(dut: SimObject) -> RstbResult {
     let clk = dut.c("clk");
-    let rd_en = dut.c("rd_en");
+    let rd_en = dut.c("m_tready");
     loop {
         clk.rising_edge().await;
         Trigger::read_write().await;
@@ -29,7 +29,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 
     // Use a Model of the memory inside the FIFO instead of the HDL implementation
     // Just because we can :)
-    let mem = tb::MemModel::new(dut.c("mem"), 1<<4);
+    let mem = tb::MemModel::new(dut.c("fifo").c("mem"), 1<<4);
     Task::fork(mem.exec());
     Task::fork(rd_en(dut));
 
@@ -37,21 +37,21 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 
     // Using these prevents HashMap lookups in the loop
     let clk = dut.c("clk");
-    let din = dut.c("din");
-    let wr_en = dut.c("wr_en");
+    let tdata = dut.c("s_tdata");
+    let tvalid = dut.c("s_tvalid");
 
     for j in 0..100_000 {
         clk.rising_edge().await;
         Trigger::read_write().await;
 
         if utils::rand() < 0.5 {
-            din.set_u32(j % (1 << 4));
-            wr_en.set(1);
+            tdata.set_u32(j % (1 << 4));
+            tvalid.set(1);
         } else {
-            wr_en.set(0);
+            tvalid.set(0);
         }
     }
-    wr_en.set(0);
+    tvalid.set(0);
 
     Trigger::timer(1, "us").await;
 
@@ -59,30 +59,37 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 }
 
 // Specify tests to be executed
-rstb::run_with_vpi!(test_fifo);
+rstb::run_with_vpi!(/*assertion_setup, */test_fifo);
 
 
 
 async fn assertion_setup(dut: SimObject) -> RstbResult {
+    let clk = dut.c("clk");
+    let s_tvalid = dut.c("s_tvalid");
+    let s_tready = dut.c("s_tready");
+    let s_tdata = dut.c("s_tdata");
+    let m_tvalid = dut.c("m_tvalid");
+    let m_tready = dut.c("m_tready");
+    let m_tdata = dut.c("m_tdata");
 
     // This assertion will check that every word that is input to the fifo
     // will come out at the output after at most 16 reads.
     add_assertion! (
         "input_to_output",                                  // name
-        dut.c("clk").rising_edge(),                         // trigger
+        clk.rising_edge(),                                  // trigger
         async move {                                        // condition
-            check!(dut.c("wr_en").u32() == 1 && dut.c("full").u32() == 0)
+            check!(s_tvalid.u32() == 1 && s_tready.u32() == 1)
         },
         move |_| { async move {                             // checking function
-            let data = dut.c("din").u32();
+            let data = s_tdata.u32();
             let mut rd_cnt = 0;
             loop {
-                dut.c("clk").rising_edge_ro().await;
-                if dut.c("rd_en").u32() == 1 && dut.c("empty").u32() == 0 {
-                    if dut.c("dout").u32() == data {
+                clk.rising_edge_ro().await;
+                if m_tvalid.u32() == 1 && m_tready.u32() == 0 {
+                    if m_tdata.u32() == data {
                         return Ok(Val::None)
                     }
-                    if rd_cnt > 10 {
+                    if rd_cnt > 16 {
                         return Err(Val::None)
                     } else {
                         rd_cnt += 1;
