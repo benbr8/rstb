@@ -41,8 +41,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
     let tvalid = dut.c("s_tvalid");
 
     for j in 0..100_000 {
-        clk.rising_edge().await;
-        Trigger::read_write().await;
+        clk.rising_edge_rw().await;
 
         if utils::rand() < 0.5 {
             tdata.set_u32(j % (1 << 4));

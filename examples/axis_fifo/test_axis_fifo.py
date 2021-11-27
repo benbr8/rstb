@@ -7,6 +7,7 @@ import random
 import cocotb
 from cocotb.triggers import RisingEdge, Timer, ReadOnly
 from cocotb.log import SimLog
+from cocotb.result import TestFailure, TestSuccess
 
 class MemModel:
     def __init__(self, dut, depth) -> None:
@@ -69,32 +70,56 @@ class Scoreboard:
             return False
         return True
 
+class Monitor:
+    def __init__(self) -> None:
+        self.scoreboard = None
+        self.exp_not_recv = False
+
+    def set_scoreboard(self, scoreboard: Scoreboard, exp_not_recv):
+        self.scoreboard = scoreboard
+        self.exp_not_recv = exp_not_recv
+
+    def to_scoreboard(self, data):
+        if self.exp_not_recv:
+            self.scoreboard.add_exp(data)
+        else:
+            self.scoreboard.add_recv(data)
+
+class AxisMonitor(Monitor):
+    def __init__(self, clk, tvalid, tready, tdata) -> None:
+        super().__init__()
+        self.clk = clk
+        self.tvalid = tvalid
+        self.tready = tready
+        self.tdata = tdata
+
+    async def run(self):
+        while True:
+            await RisingEdge(self.clk)
+            await ReadOnly()
+            if self.tvalid.value == 1 and self.tready.value == 1:
+                self.to_scoreboard(self.tdata.value)
+
+
 class FifoTb:
-    def __init__(self):
+    def __init__(self, dut):
         self.scoreboard = Scoreboard()
-
-    async def monitor_in(self, dut):
-        while True:
-            await RisingEdge(dut.clk)
-            await ReadOnly()
-            if int(dut.wr_en) == 1 and int(dut.full) == 0:
-                self.scoreboard.add_exp(int(dut.din))
-
-    async def monitor_out(self, dut):
-        while True:
-            await RisingEdge(dut.clk)
-            await ReadOnly()
-            if int(dut.rd_en) == 1 and int(dut.empty) == 0:
-                self.scoreboard.add_recv(int(dut.dout))
+        self.mon_in = AxisMonitor(dut.clk, dut.s_tvalid, dut.s_tready, dut.s_tdata)
+        self.mon_out = AxisMonitor(dut.clk, dut.m_tvalid, dut.m_tready, dut.m_tdata)
+        self.mon_in.set_scoreboard(self.scoreboard, True)
+        self.mon_out.set_scoreboard(self.scoreboard, False)
+        cocotb.fork(clock(dut.clk, 10))
+        cocotb.fork(self.mon_in.run())
+        cocotb.fork(self.mon_out.run())
 
 
 async def clock(clk, time_ns):
-    half = time_ns / 2
+    half = time_ns * 1000 / 2
     while True:
         clk.value = 0
-        await Timer(half, "ns")
+        await Timer(half, "ps")
         clk.value = 1
-        await Timer(half, "ns")
+        await Timer(half, "ps")
 
 
 async def rd_stim(clk, rd):
@@ -108,8 +133,8 @@ async def rd_stim(clk, rd):
 
 async def reset(dut):
     dut.rst.value = 1
-    dut.rd_en <= 0
-    dut.wr_en <= 0
+    dut.s_tvalid <= 0
+    dut.m_tready <= 0
     for _ in range(10):
         await RisingEdge(dut.clk)
     dut.rst.value = 0
@@ -119,22 +144,24 @@ async def reset(dut):
 
 @cocotb.test()
 async def default(dut):
-    tb = FifoTb()
-    cocotb.fork(clock(dut.clk, 8))
-    await reset(dut)
-    mem = MemModel(dut.mem, 1<<4)
+    tb = FifoTb(dut)
+    mem = MemModel(dut.fifo.mem, 1<<4)
     cocotb.fork(mem.exec())
-    cocotb.fork(rd_stim(dut.clk, dut.rd_en))
-    cocotb.fork(tb.monitor_in(dut))
-    cocotb.fork(tb.monitor_out(dut))
+    cocotb.fork(rd_stim(dut.clk, dut.m_tready))
+
+    await reset(dut)
 
     for i in range(100_000):
         await RisingEdge(dut.clk)
         if random.random() < 0.5:
-            dut.din <= i
-            dut.wr_en <= 1
-    dut.wr_en <= 0
+            dut.s_tdata <= i
+            dut.s_tvalid <= 1
+        else:
+            dut.s_tvalid <= 0
+    dut.s_tvalid <= 0
 
     await Timer(1, "us")
 
-    tb.scoreboard.print_stats()
+    if tb.scoreboard.result():
+        raise TestSuccess()
+    raise TestFailure()
