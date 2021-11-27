@@ -1,4 +1,4 @@
-#![allow(unreachable_code)]
+#![allow(unreachable_code, dead_code)]
 mod tb_utils;
 
 use rstb::prelude::*;

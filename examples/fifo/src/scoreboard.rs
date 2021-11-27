@@ -1,12 +1,13 @@
 use rstb::prelude::*;
-use std::{borrow::Borrow, collections::VecDeque};
+use std::collections::VecDeque;
+use rstb::rstb_obj::AnyObj;
 
-#[derive(Clone)]
-pub struct Scoreboard<T: PartialEq>(RstbObj<ScoreboardInner<T>>);
+#[derive(Clone, Copy)]
+pub struct Scoreboard<T: PartialEq>(AnyObj<ScoreboardInner<T>>);
 
-impl<T: PartialEq> Scoreboard<T> {
+impl<T: 'static + PartialEq> Scoreboard<T> {
     pub fn new() -> Self {
-        Self(RstbObj::new(ScoreboardInner {
+        Self(AnyObj::new_from(ScoreboardInner {
             exp_q: VecDeque::new(),
             recv_q: VecDeque::new(),
             errors: 0,
@@ -16,29 +17,28 @@ impl<T: PartialEq> Scoreboard<T> {
         }))
     }
     pub fn add_exp(&self, data: T) {
-        {
-            let mut inner = self.0.get_mut();
-            inner.exp_q.push_back(data);
-            inner.expected += 1;
-        }
+        self.0.with_mut(|s| {
+            s.exp_q.push_back(data);
+            s.expected += 1;
+        });
         self.compare();
     }
     pub fn add_recv(&self, data: T) {
-        {
-            let mut inner = self.0.get_mut();
-            inner.recv_q.push_back(data);
-            inner.received += 1;
-        }
+        self.0.with_mut(|s| {
+            s.recv_q.push_back(data);
+            s.received += 1;
+        });
         self.compare();
     }
     fn compare(&self) {
-        let mut inner = self.0.get_mut();
-        while !inner.exp_q.is_empty() && !inner.recv_q.is_empty() {
-            match inner.exp_q.pop_front() == inner.recv_q.pop_front() {
-                true => inner.matched += 1,
-                false => inner.errors += 1,
+        self.0.with_mut(|s| {
+            while !s.exp_q.is_empty() && !s.recv_q.is_empty() {
+                match s.exp_q.pop_front() == s.recv_q.pop_front() {
+                    true => s.matched += 1,
+                    false => s.errors += 1,
+                }
             }
-        }
+        });
     }
     pub fn result(&self) -> RstbResult {
         match self.passed() {

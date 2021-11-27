@@ -1,8 +1,82 @@
+
 use std::{
     cell::{Ref, RefCell, RefMut},
     rc::Rc,
     sync::{Arc, Mutex, MutexGuard},
 };
+use lazy_mut::lazy_mut;
+use intmap::IntMap;
+use std::any::Any;
+use std::marker::PhantomData;
+
+
+lazy_mut! {
+    static mut OBJ_MAP: IntMap<Rc<RefCell<dyn Any>>> = IntMap::new();
+}
+
+static mut OBJ_CNT: u64 = 0;
+
+
+#[derive(Default)]
+pub struct AnyObj<T>(u64, PhantomData<T>);
+
+impl<T> Clone for AnyObj<T> {
+    fn clone(&self) -> Self {
+        Self(self.0, PhantomData)
+    }
+}
+impl<T> Copy for AnyObj<T> {}
+
+impl<T: 'static> AnyObj<T> {
+    pub fn new() -> Self {
+        Self(0, PhantomData)
+    }
+    pub fn new_from(data: T) -> Self {
+        let obj_id = unsafe {
+            OBJ_CNT += 1;
+            OBJ_CNT
+        };
+        let obj = Self(obj_id, PhantomData);
+        obj.set(data);
+        obj
+    }
+    pub fn with<F: FnOnce(&T)>(&self, f: F)
+    {
+        let a = unsafe { OBJ_MAP.get(self.0).unwrap().borrow() };
+        let b = a.downcast_ref::<T>().unwrap();
+        f(b);
+    }
+    pub fn with_mut<F: FnOnce(&mut T)>(&self, f: F)
+    {
+        let mut a = unsafe { OBJ_MAP.get(self.0)
+            .expect("AnyObj not yet initialized.")
+            .borrow_mut() };
+        let b = a.downcast_mut::<T>().unwrap();
+        f(b);
+    }
+
+    pub fn get(&self) -> Ref<T> {
+        let a = unsafe { OBJ_MAP.get(self.0).unwrap()};
+        let b = a.borrow();
+        Ref::map(b, |a| {
+            a.downcast_ref::<T>().unwrap()
+        })
+    }
+    pub fn get_mut(&self) -> RefMut<T> {
+        let a = unsafe { OBJ_MAP.get(self.0).unwrap()};
+        let b = a.borrow_mut();
+        RefMut::map(b, |a| {
+            a.downcast_mut::<T>().unwrap()
+        })
+    }
+
+    fn set(&self, data: T) {
+        let r = Rc::new(RefCell::new(data));
+        unsafe { OBJ_MAP.insert(self.0, r) };
+    }
+}
+
+
 
 // RstbObj shall allow the user to mutably share test objects (such as a Scoreboard, etc.)
 // between Tasks. Since the simulation is single threaded, we can use Rc, RefCell, which

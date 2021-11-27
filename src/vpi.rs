@@ -163,7 +163,6 @@ impl SimIf for Vpi {
     }
     fn get_kind(&self, obj: usize) -> ObjectKind {
         let t = get_kind_raw(obj);
-        let size = self.get_size(obj) as u32;
         match t as u32 {
             vpi_user::vpiRealVar
             | sv_vpi_user::vpiShortRealVar => ObjectKind::Real,

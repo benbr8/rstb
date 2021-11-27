@@ -1,6 +1,7 @@
 #![allow(unreachable_code, unused_must_use, dead_code)]
 mod tb;
 mod scoreboard;
+mod monitor;
 
 use rstb::prelude::*;
 
@@ -30,13 +31,9 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
     // Just because we can :)
     let mem = tb::MemModel::new(dut.c("mem"), 1<<4);
     Task::fork(mem.exec());
+    Task::fork(rd_en(dut));
 
     tb.reset().await;
-
-    // Fork concurrent processes, such as interface monitors and stimulus generators
-    Task::fork(tb.clone().read_mon());
-    Task::fork(tb.clone().write_mon());
-    Task::fork(rd_en(dut));
 
     // Using these prevents HashMap lookups in the loop
     let clk = dut.c("clk");
@@ -58,7 +55,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 
     Trigger::timer(1, "us").await;
 
-    tb.clone().scoreboard.result()
+    tb.scoreboard.result()
 }
 
 // Specify tests to be executed

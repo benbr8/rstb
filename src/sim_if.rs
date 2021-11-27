@@ -42,6 +42,7 @@ pub enum ObjectKind {
     Other,
 }
 
+#[allow(clippy::result_unit_err)]
 pub trait SimIf {
     fn set_value_int(&self, handle: usize, value: i32, force: bool) -> SimpleResult<()>;
     fn get_value_int(&self, obj: usize) -> SimpleResult<i32>;

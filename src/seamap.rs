@@ -8,6 +8,7 @@ impl<K, V> SeaMap<K, V>
 where
     K: Eq + Hash,
 {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         SeaMap(HashMap::with_hasher(fasthash::sea::Hash64))
     }

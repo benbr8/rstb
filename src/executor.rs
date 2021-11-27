@@ -167,11 +167,9 @@ impl JoinHandle {
         self
     }
     pub(crate) fn get_task(&self) -> Option<Arc<Task>> {
-        if let Some(task) = self.awaited_task.as_ref() {
-            Some(task.clone())
-        } else {
-            None
-        }
+        self.awaited_task
+            .as_ref()
+            .cloned()
     }
     pub fn cancel(mut self) {
         // take awaited_task, cancel it and drop its reference

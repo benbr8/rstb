@@ -1,6 +1,6 @@
 #![allow(unreachable_code, unused_must_use)]
 
-use crate::scoreboard::*;
+use crate::{monitor::Monitor, scoreboard::*};
 use rstb::prelude::*;
 
 #[derive(Clone)]
@@ -44,9 +44,42 @@ impl MemModel {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
+pub struct AxisMonitor {
+    pub mon: Monitor<u32>,
+    clk: SimObject,
+    valid: SimObject,
+    ready: SimObject,
+    data: SimObject,
+}
+
+impl AxisMonitor {
+    pub fn new(clk: SimObject, valid: SimObject, ready: SimObject, data: SimObject) -> Self {
+        Self {
+            mon: Monitor::new(),
+            clk,
+            valid,
+            ready,
+            data,
+        }
+    }
+
+    pub async fn run(self) -> RstbResult {
+        loop {
+            self.clk.rising_edge_ro().await;
+            if self.valid.u32() == 1 && self.ready.u32() == 0 {
+                self.mon.to_scoreboard(self.data.u32());
+            }
+        }
+        Ok(Val::None)
+    }
+}
+
+#[derive(Clone, Copy)]
 pub struct FifoTb {
     pub scoreboard: Scoreboard<u32>,
+    mon_in: AxisMonitor,
+    mon_out: AxisMonitor,
     dut: SimObject,
     clk: SimObject,
 }
@@ -56,9 +89,15 @@ impl FifoTb {
         let tb = Self {
             scoreboard: Scoreboard::new(),
             dut,
+            mon_in: AxisMonitor::new(dut.c("clk"), dut.c("wr_en"), dut.c("full"), dut.c("din")),
+            mon_out: AxisMonitor::new(dut.c("clk"), dut.c("rd_en"), dut.c("empty"), dut.c("dout")),
             clk: dut.c("clk"),
         };
-        Task::fork(tb.clone().clock_stim(10));
+        tb.mon_in.mon.set_scoreboard(tb.scoreboard, true);
+        tb.mon_out.mon.set_scoreboard(tb.scoreboard, false);
+        Task::fork(tb.clock_stim(10));
+        Task::fork(tb.mon_in.run());
+        Task::fork(tb.mon_out.run());
         tb
     }
 
@@ -86,33 +125,33 @@ impl FifoTb {
         Ok(Val::None)
     }
 
-    pub async fn write_mon(self) -> RstbResult {
-        let wr_en = self.dut.c("wr_en");
-        let full = self.dut.c("full");
-        let din = self.dut.c("din");
-        loop {
-            self.clk.rising_edge().await;
-            Trigger::read_only().await;
-            if wr_en.u32() == 1 && full.u32() == 0 {
-                // SIM_IF.log(&format!("Adding expected to scoreboard: {}", dut.c("din").u32()));
-                self.scoreboard.add_exp(din.u32());
-            }
-        }
-        Ok(Val::None)
-    }
+    // pub async fn write_mon(self) -> RstbResult {
+    //     let wr_en = self.dut.c("wr_en");
+    //     let full = self.dut.c("full");
+    //     let din = self.dut.c("din");
+    //     loop {
+    //         self.clk.rising_edge().await;
+    //         Trigger::read_only().await;
+    //         if wr_en.u32() == 1 && full.u32() == 0 {
+    //             // SIM_IF.log(&format!("Adding expected to scoreboard: {}", dut.c("din").u32()));
+    //             self.scoreboard.add_exp(din.u32());
+    //         }
+    //     }
+    //     Ok(Val::None)
+    // }
 
-    pub async fn read_mon(self) -> RstbResult {
-        let rd_en = self.dut.c("rd_en");
-        let empty = self.dut.c("empty");
-        let dout = self.dut.c("dout");
-        loop {
-            self.clk.rising_edge().await;
-            Trigger::read_only().await;
-            if rd_en.u32() == 1 && empty.u32() == 0 {
-                // SIM_IF.log(&format!("Adding received to scoreboard: {}", dut.c("dout").u32()));
-                self.scoreboard.add_recv(dout.u32());
-            }
-        }
-        Ok(Val::None)
-    }
+    // pub async fn read_mon(self) -> RstbResult {
+    //     let rd_en = self.dut.c("rd_en");
+    //     let empty = self.dut.c("empty");
+    //     let dout = self.dut.c("dout");
+    //     loop {
+    //         self.clk.rising_edge().await;
+    //         Trigger::read_only().await;
+    //         if rd_en.u32() == 1 && empty.u32() == 0 {
+    //             // SIM_IF.log(&format!("Adding received to scoreboard: {}", dut.c("dout").u32()));
+    //             self.scoreboard.add_recv(dout.u32());
+    //         }
+    //     }
+    //     Ok(Val::None)
+    // }
 }
