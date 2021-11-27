@@ -26,6 +26,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
     // run all registered assertions
     run_all_assertions();
     let tb = tb::FifoTb::new(dut);
+    tb.reset().await;
 
     // Use a Model of the memory inside the FIFO instead of the HDL implementation
     // Just because we can :)
@@ -33,7 +34,6 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
     Task::fork(mem.exec());
     Task::fork(rd_en(dut));
 
-    tb.reset().await;
 
     // Using these prevents HashMap lookups in the loop
     let clk = dut.c("clk");
@@ -58,7 +58,7 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
 }
 
 // Specify tests to be executed
-rstb::run_with_vpi!(/*assertion_setup, */test_fifo);
+rstb::run_with_vpi!(/*assertion_setup,*/ test_fifo);
 
 
 
@@ -84,7 +84,7 @@ async fn assertion_setup(dut: SimObject) -> RstbResult {
             let mut rd_cnt = 0;
             loop {
                 clk.rising_edge_ro().await;
-                if m_tvalid.u32() == 1 && m_tready.u32() == 0 {
+                if m_tvalid.u32() == 1 && m_tready.u32() == 1 {
                     if m_tdata.u32() == data {
                         return Ok(Val::None)
                     }
