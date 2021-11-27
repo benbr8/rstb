@@ -1,7 +1,5 @@
 #![allow(unreachable_code, unused_must_use, dead_code)]
 mod tb;
-mod scoreboard;
-mod monitor;
 
 use rstb::prelude::*;
 

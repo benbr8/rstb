@@ -15,4 +15,5 @@ pub use crate::vhpi_init;
 pub use crate::vpi_init;
 pub use crate::{add_assertion, check, combine, fail_test, init_test_result, pass_test};
 pub use crate::{RstbResult, VecTestFn};
+pub use crate::testbench;
 pub use futures::future::FutureExt;

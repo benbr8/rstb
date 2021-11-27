@@ -1,7 +1,7 @@
 #![allow(unreachable_code, unused_must_use)]
 
-use crate::{monitor::Monitor, scoreboard::*};
 use rstb::prelude::*;
+use testbench::{Monitor, Scoreboard};
 
 #[derive(Clone)]
 pub struct MemModel {

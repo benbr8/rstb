@@ -1,13 +1,14 @@
 mod executor;
 pub mod prelude;
 mod seamap;
-pub mod signal;
-pub mod trigger;
-pub mod rstb_obj;
-pub mod value;
+mod signal;
+mod trigger;
+mod rstb_obj;
+mod value;
 mod assertion;
 pub mod sim_if;
 pub mod utils;
+pub mod testbench;
 #[cfg(feature = "vhpi")]
 mod vhpi;
 #[cfg(feature = "vhpi")]
