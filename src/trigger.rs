@@ -7,13 +7,14 @@ use std::task::{Context, Poll, Waker};
 
 use crate::executor;
 use crate::{
+    RstbResult,
     signal::SimObject,
     sim_if::{SimCallback, SIM_IF},
     value::Val,
 };
 
+// IntMap specializes on u64 keys and is faster than even SeaMap, since it doesn't actualy need to calculate a hash
 lazy_mut! {
-    // IntMap specializes on u64 keys and is faster than even SeaMap
     // key is signal handle as u64
     static mut EDGE_MAP: IntMap<CallbackHandles> = IntMap::new();
 }
@@ -104,6 +105,16 @@ impl Trigger {
             awaited: false,
             high_exec_prio: false,
         }
+    }
+    pub async fn timer_ro(time: u64, unit: &str) -> RstbResult {
+        Trigger::timer(time, unit).await;
+        Trigger::read_only().await;
+        Ok(Val::None)
+    }
+    pub async fn timer_rw(time: u64, unit: &str) -> RstbResult {
+        Trigger::timer(time, unit).await;
+        Trigger::read_write().await;
+        Ok(Val::None)
     }
     pub fn edge(signal: SimObject) -> Self {
         Trigger {
