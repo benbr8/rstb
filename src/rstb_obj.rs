@@ -31,6 +31,9 @@ impl<T: 'static> AnyObj<T> {
     pub fn new() -> Self {
         Self(0, PhantomData)
     }
+    pub fn delete(self) {
+        unsafe { OBJ_MAP.remove(self.0).expect("Could not find specified object.") };
+    }
     pub fn new_from(data: T) -> Self {
         let obj_id = unsafe {
             OBJ_CNT += 1;
