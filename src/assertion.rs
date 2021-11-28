@@ -131,7 +131,7 @@ impl Assertion {
         loop {
             // start history task if it is not already running
             if self.ctx.hist().task_hdl.is_none() && self.ctx.hist().enabled {
-                let task_hdl = Task::fork(async move {
+                let task_hdl = Task::spawn(async move {
                     loop {
                         self.ctx.trig().await;
                         // trigger with prio ensures execution before triggers without
@@ -156,7 +156,7 @@ impl Assertion {
             if *self.enabled.get() {
                 let condition = (self.condition.get())();
                 let checker = (self.checker.get())(self.ctx.clone());
-                let _task = Task::fork(async move {
+                let _task = Task::spawn(async move {
                     condition.await?;
                     self.trigger();
                     let r = checker.await;
@@ -248,7 +248,7 @@ pub fn run_all_assertions() {
         ASSERTION_MAP.init();
         for (_, assertion) in ASSERTION_MAP.iter() {
             let fut = assertion.run();
-            Task::fork(fut);
+            Task::spawn(fut);
         }
     }
 }
@@ -274,7 +274,7 @@ pub fn run_assertion(name: &str) {
         ASSERTION_MAP.init();
         if ASSERTION_MAP.contains_key(name) {
             let fut = ASSERTION_MAP.get(name).unwrap().run();
-            Task::fork(fut);
+            Task::spawn(fut);
         } else {
             panic!("Assertion {} not previously defined!", name);
         }

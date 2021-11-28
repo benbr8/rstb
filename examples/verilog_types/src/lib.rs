@@ -42,7 +42,7 @@ async fn test_default(dut: SimObject) -> RstbResult {
     SIM_IF.log(&format!("int(reg1_signed) = {}", reg1_signed.i32()));
 
     SIM_IF.log("Checking rising_edge on 1 bit signed reg");
-    Task::fork(async move {
+    Task::spawn(async move {
         Trigger::rising_edge(reg1_signed).await;
         SIM_IF.log("Rising_edge(reg1_signed) awaited");
         SIM_IF.log(&format!("int(reg1_signed) = {}", reg1_signed.i32()));

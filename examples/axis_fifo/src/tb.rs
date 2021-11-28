@@ -95,9 +95,9 @@ impl FifoTb {
         };
         tb.mon_in.mon.set_scoreboard(tb.scoreboard, true);
         tb.mon_out.mon.set_scoreboard(tb.scoreboard, false);
-        Task::fork(tb.clock_stim(10));
-        Task::fork(tb.mon_in.run());
-        Task::fork(tb.mon_out.run());
+        Task::spawn(tb.clock_stim(10));
+        Task::spawn(tb.mon_in.run());
+        Task::spawn(tb.mon_out.run());
         tb
     }
 

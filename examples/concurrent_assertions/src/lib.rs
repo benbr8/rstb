@@ -19,7 +19,7 @@ async fn test_default(dut: SimObject) -> RstbResult {
     let req = dut.c("req");
     run_all_assertions();
 
-    Task::fork(clock(clk, 8, "ns"));
+    Task::spawn(clock(clk, 8, "ns"));
 
     for _ in 0..10_000 {
         Trigger::rising_edge(clk).await;

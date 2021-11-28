@@ -1,10 +1,6 @@
-
-import logging
-from collections import deque
 import random
-
 import cocotb
-from cocotb.triggers import ReadWrite, RisingEdge, Timer, ReadOnly
+from cocotb.triggers import ReadWrite, RisingEdge, Timer
 from cocotb.result import TestFailure, TestSuccess
 
 

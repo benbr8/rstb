@@ -94,7 +94,7 @@ macro_rules! run_with_vpi {
     }
 }
 pub fn pass_test(msg: &str) {
-    // Passes test has not already failed/passed
+    // Passes test that has not already failed/passed
     if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
         set_test_result(name, true, msg.to_string());
         tear_down_test(test);
@@ -102,7 +102,7 @@ pub fn pass_test(msg: &str) {
 }
 
 pub fn fail_test(msg: &str) {
-    // Fails test has not already failed/passed
+    // Fails test that has not already failed/passed
     if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
         set_test_result(name, false, msg.to_string());
         tear_down_test(test);
@@ -113,6 +113,7 @@ fn tear_down_test(test: Arc<Task>) {
     assertion::tear_down_assertions();
     trigger::cancel_all_triggers();
     executor::clear_ready_queue();
+    rstb_obj::clear_objects();
     test.cancel();
 }
 

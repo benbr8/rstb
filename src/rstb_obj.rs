@@ -76,6 +76,10 @@ impl<T: 'static> AnyObj<T> {
     }
 }
 
+pub(crate) fn clear_objects() {
+    unsafe { OBJ_MAP.clear() };
+}
+
 
 
 // RstbObj shall allow the user to mutably share test objects (such as a Scoreboard, etc.)

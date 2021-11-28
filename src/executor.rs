@@ -92,7 +92,7 @@ pub struct Task {
     join_tx: Mutex<Option<oneshot::Sender<RstbResult>>>,
 }
 impl Task {
-    pub fn fork(
+    pub fn spawn(
         future: impl Future<Output = RstbResult> + Send + 'static
     ) -> JoinHandle {
         Task::spawn_from_future(future, "forked")
@@ -177,7 +177,7 @@ impl JoinHandle {
         task.cancel();
     }
     pub fn and_then(self, fut: impl Future<Output = RstbResult> + Send + 'static) -> JoinHandle {
-        Task::fork(async move {
+        Task::spawn(async move {
             self.join_rx.await.unwrap()?;
             fut.await
         })
@@ -200,7 +200,7 @@ impl Future for JoinHandle {
 #[macro_export]
 macro_rules! combine {
     ($( $i:ident ),+) => {
-        Task::fork(async move {
+        Task::spawn(async move {
             let mut vec: Vec<Val> = Vec::new();
             $(vec.push($i.await.unwrap());)+
             Ok(Val::Vec(vec))

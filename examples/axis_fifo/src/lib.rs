@@ -29,8 +29,8 @@ pub async fn test_fifo(dut: SimObject) -> RstbResult {
     // Use a Model of the memory inside the FIFO instead of the HDL implementation
     // Just because we can :)
     let mem = tb::MemModel::new(dut.c("fifo").c("mem"), 1<<4);
-    Task::fork(mem.exec());
-    Task::fork(rd_en(dut));
+    Task::spawn(mem.exec());
+    Task::spawn(rd_en(dut));
 
 
     // Using these prevents HashMap lookups in the loop
