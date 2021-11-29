@@ -58,7 +58,6 @@ pub trait SimIf {
     fn get_full_name(&self, obj: usize) -> SimpleResult<String>;
     fn get_sim_precision(&self) -> i8;
     fn get_root_handle(&self) -> SimpleResult<usize>;
-    fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize>; // TODO
     fn register_callback_rw(&self) -> SimpleResult<usize>;
     fn register_callback_ro(&self) -> SimpleResult<usize>;
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize>;

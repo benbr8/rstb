@@ -290,57 +290,6 @@ impl SimIf for Vpi {
             unsafe { self._register_callback(reason, time, value, handle, react_vpi_edge) }
         )
     }
-    fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize> {
-        // reason
-        let reason = match cb {
-            SimCallback::Time(_) => vpi_user::cbAfterDelay as i32,
-            SimCallback::Edge(_) => vpi_user::cbValueChange as i32,
-            SimCallback::ReadWrite => vpi_user::cbReadWriteSynch as i32,
-            SimCallback::ReadOnly => vpi_user::cbReadOnlySynch as i32,
-        };
-        // time
-        let mut time = match cb {
-            SimCallback::Time(t) => vpi_user::t_vpi_time {
-                type_: vpi_user::vpiSimTime as i32,
-                high: (t >> 32) as u32,
-                low: (t & 0xFFFF_FFFF) as u32,
-                ..Default::default()
-            },
-            _ => vpi_user::t_vpi_time {
-                type_: vpi_user::vpiSuppressTime as i32,
-                ..Default::default()
-            },
-        };
-        // value
-        let mut value = match cb {
-            SimCallback::Edge(_) => vpi_user::t_vpi_value {
-                format: vpi_user::vpiIntVal as i32,
-                ..Default::default()
-            },
-            _ => vpi_user::t_vpi_value {
-                format: vpi_user::vpiSuppressVal as i32,
-                ..Default::default()
-            },
-        };
-        // handle
-        let handle = match cb {
-            SimCallback::Edge(handle) => handle as *mut u32,
-            _ => std::ptr::null_mut(),
-        };
-        let mut cb_data = vpi_user::t_cb_data {
-            reason,
-            cb_rtn: Some(react_vpi),
-            obj: handle,
-            value: &mut value,
-            time: &mut time,
-            ..Default::default()
-        };
-        // vpi::log("Registering callback with simulator.");
-        // vpi::print_cb_data(&mut cb_data);
-        let ret = unsafe { vpi_user::vpi_register_cb(&mut cb_data) };
-        // vpi::log("Registeried callback with simulator.");
-        Ok(ret as usize)
-    }
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         match unsafe { vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
             1 => Ok(()),
@@ -385,40 +334,6 @@ pub(crate) extern "C" fn react_vpi_ro(cb_data: *mut vpi_user::t_cb_data) -> vpi_
 #[no_mangle]
 pub(crate) extern "C" fn react_vpi_rw(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
     trigger::react_rw();
-    0
-}
-
-#[no_mangle]
-pub(crate) extern "C" fn react_vpi(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
-    let cb = unsafe {
-        (*cb_data)
-            .to_sim_callback()
-            .expect("Invalid callback data received.")
-    };
-    // SIM_IF.log(&format!("Converted CB: {:?}", cb));
-
-    match cb {
-        SimCallback::Edge(hdl) => {
-            // only 1 bit types can have a rising or falling edge
-            match SIM_IF.get_size(hdl) {
-                1 => {
-                    let mut edge = EdgeKind::Any;
-                    unsafe {
-                        if !(*cb_data).value.is_null() {
-                            // this actually happens under some conditions?
-                            edge = match (*(*cb_data).value).value.integer {
-                                0 => EdgeKind::Falling,
-                                _ => EdgeKind::Rising,
-                            }
-                        }
-                    };
-                    trigger::react(cb, Some(edge));
-                }
-                _ => trigger::react(cb, None),
-            }
-        }
-        _ => trigger::react(cb, None),
-    }
     0
 }
 
