@@ -184,7 +184,7 @@ impl Future for Trigger {
                     READ_WRITE.callbacks.push_back(shared);
                     if READ_WRITE.handle.is_none() {
                         let cb = SimCallback::ReadWrite;
-                        let cb_hdl = SIM_IF.register_callback(cb).unwrap();
+                        let cb_hdl = SIM_IF.register_callback_rw().unwrap();
                         READ_WRITE.handle.replace(cb_hdl);
                     }
                 },
@@ -195,7 +195,7 @@ impl Future for Trigger {
                     }
                     if READ_ONLY.handle.is_none() {
                         let cb = SimCallback::ReadOnly;
-                        let cb_hdl = SIM_IF.register_callback(cb).unwrap();
+                        let cb_hdl = SIM_IF.register_callback_ro().unwrap();
                         READ_ONLY.handle.replace(cb_hdl);
                     }
                 },
@@ -205,7 +205,8 @@ impl Future for Trigger {
                     if let Some(callbacks) = unsafe { TIMER_MAP.get_mut(abs_time) } {
                         callbacks.callbacks.push_back(shared);
                     } else {
-                        let handle = SIM_IF.register_callback(SimCallback::Time(t)).unwrap();
+                        // SIM_IF.log("Registering time");
+                        let handle = SIM_IF.register_callback_time(t).unwrap();
                         let mut vec = VecDeque::new();
                         vec.push_back(shared);
                         let callback = CallbackHandles {
@@ -216,14 +217,16 @@ impl Future for Trigger {
                     }
                 }
                 TrigKind::Edge(sig_hdl, edge_kind) => {
+                    // SIM_IF.log("Edge trigger");
                     shared.edge_kind = edge_kind;
                     if let Some(callbacks) = unsafe { EDGE_MAP.get_mut(sig_hdl as u64) } {
                         // vpi::log("Callback already exists. Appending.");
                         callbacks.callbacks.push_back(shared);
                     } else {
                         // vpi::log("Registering callback.");
+                        // SIM_IF.log("Registering edge");
                         let handle = SIM_IF
-                            .register_callback(SimCallback::Edge(sig_hdl))
+                            .register_callback_edge(sig_hdl)
                             .unwrap();
                         let mut vec = VecDeque::new();
                         vec.push_back(shared);
@@ -239,6 +242,122 @@ impl Future for Trigger {
             Poll::Pending
         }
     }
+}
+
+
+#[inline]
+fn wake(vec_wake: VecDeque<TrigShared>) {
+    for shared in vec_wake {
+        shared.waker.wake();
+    }
+    // execute woken tasks
+    executor::run_once();
+}
+
+#[inline]
+pub(crate) fn react_rw() {
+    let vec_wake;
+    unsafe {
+        READ_WRITE.handle = None; // remove handle, since CB is now done
+        if !READ_WRITE.callbacks.is_empty() {
+            vec_wake = std::mem::take(&mut READ_WRITE.callbacks);
+        } else {
+            panic!("Did not expect ReadOnly callback");
+        }
+    }
+    wake(vec_wake);
+}
+
+#[inline]
+pub(crate) fn react_ro() {
+    let vec_wake;
+    unsafe {
+        READ_ONLY.handle = None; // remove handle, since CB is now done
+        if !READ_ONLY.callbacks.is_empty() {
+            vec_wake = std::mem::take(&mut READ_ONLY.callbacks);
+        } else {
+            panic!("Did not expect ReadOnly callback");
+        }
+    }
+    wake(vec_wake);
+}
+
+#[inline]
+pub(crate) fn react_time(t: u64) {
+    // SIM_IF.log("Reacting time");
+    let cbh = unsafe { TIMER_MAP.remove(t).expect("Did not expect Timer callback at given time") };
+    wake(cbh.callbacks);
+}
+
+#[inline]
+pub(crate) fn react_edge(sig_hdl: usize, edge: EdgeKind) {
+    let mut cbh = unsafe { EDGE_MAP.remove(sig_hdl as u64) }.unwrap();
+    let mut vec_wake;
+    match edge {
+        EdgeKind::Any => {
+            vec_wake = std::mem::take(&mut cbh.callbacks);
+            // SIM_IF.log("Any: cancelling callback");
+            SIM_IF.cancel_callback(cbh.handle.unwrap()).unwrap();
+        }
+        _ => {
+            vec_wake = VecDeque::with_capacity(cbh.callbacks.len());
+            let mut vec_resched: VecDeque<TrigShared> = VecDeque::with_capacity(cbh.callbacks.len());
+            // dbg!(&cbh.callbacks);
+            for trig in cbh.callbacks.drain(..) {
+                if trig.edge_kind == EdgeKind::Any || trig.edge_kind == edge {
+                    vec_wake.push_back(trig);
+                } else {
+                    vec_resched.push_back(trig);
+                }
+            }
+            if vec_resched.is_empty() {
+                SIM_IF.cancel_callback(cbh.handle.unwrap()).unwrap();
+                // SIM_IF.log("Cancelling edge callback");
+            } else {
+                // std::mem::replace(&mut cbh.callbacks, vec_resched);
+                // dbg!(&vec_resched);
+                cbh.callbacks = vec_resched;
+                unsafe { EDGE_MAP.insert(sig_hdl as u64, cbh) };
+            }
+        }
+    }
+
+    // let mut cbh = unsafe {
+    //     EDGE_MAP.remove(sig_hdl as u64).expect("Did not expect callback on the given signal")
+    // };
+    // let mut vec_wake = VecDeque::new();
+    // match edge {
+    //     EdgeKind::Any => {
+    //         vec_wake = std::mem::take(&mut cbh.callbacks);
+    //     }
+    //     _ => {
+    //         let mut vec_resched: VecDeque<TrigShared> = VecDeque::new();
+    //         let mut vec_wake_tmp: VecDeque<TrigShared> = VecDeque::new();
+    //         for trig in cbh.callbacks.drain(..) {
+    //             if trig.edge_kind == EdgeKind::Any || trig.edge_kind == edge {
+    //                 vec_wake_tmp.push_back(trig);
+    //             } else {
+    //                 vec_resched.push_back(trig);
+    //             }
+    //         }
+    //         if vec_resched.is_empty() {
+    //             // if no callbacks are remaining, cancel
+    //             // vpi::log("no callbacks are remaining -> cancel");
+    //             SIM_IF.cancel_callback(cbh.handle.unwrap()).unwrap();
+    //         } else {
+    //             // put rescheduled callbacks back into EDGE_MAP
+    //             // vpi::log("put rescheduled callbacks back into EDGE_MAP");
+    //             cbh.callbacks = vec_resched;
+    //             unsafe { EDGE_MAP.insert(sig_hdl as u64, cbh) };
+    //         }
+    //         if !vec_wake_tmp.is_empty() {
+    //             // vpi::log(&format!("Waking callbacks: n={}", vec_wake_tmp.len()));
+    //             vec_wake = vec_wake_tmp;
+    //         }
+    //     }
+    // }
+    // dbg!(&vec_wake);
+    wake(vec_wake);
 }
 
 #[inline]

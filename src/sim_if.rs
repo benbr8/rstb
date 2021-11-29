@@ -59,6 +59,10 @@ pub trait SimIf {
     fn get_sim_precision(&self) -> i8;
     fn get_root_handle(&self) -> SimpleResult<usize>;
     fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize>; // TODO
+    fn register_callback_rw(&self) -> SimpleResult<usize>;
+    fn register_callback_ro(&self) -> SimpleResult<usize>;
+    fn register_callback_time(&self, t: u64) -> SimpleResult<usize>;
+    fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize>;
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()>;
     fn get_sim_time(&self, unit: &str) -> f64 {
         // this function does not preserve precision, so don't use carelessly

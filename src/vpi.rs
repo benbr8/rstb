@@ -16,6 +16,28 @@ impl Vpi {
             precision: get_time_precision(),
         }
     }
+    #[inline]
+    unsafe fn _register_callback(
+        &self,
+        reason: i32,
+        mut time: vpi_user::t_vpi_time,
+        mut value: vpi_user::t_vpi_value,
+        sig_hdl: *mut u32,
+        cb_fun: unsafe extern "C" fn(*mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32,
+    ) -> usize {
+        let mut cb_data = vpi_user::t_cb_data {
+            reason,
+            cb_rtn: Some(cb_fun),
+            obj: sig_hdl,
+            value: &mut value,
+            time: &mut time,
+            ..Default::default()
+        };
+        // vpi::log("Registering callback with simulator.");
+        // vpi::print_cb_data(&mut cb_data);
+        // vpi::log("Registeried callback with simulator.");
+        vpi_user::vpi_register_cb(&mut cb_data) as usize
+    }
 }
 
 impl SimIf for Vpi {
@@ -206,6 +228,68 @@ impl SimIf for Vpi {
         }
         Ok(root as usize)
     }
+    fn register_callback_rw(&self) -> SimpleResult<usize> {
+        const reason: i32 = vpi_user::cbReadWriteSynch as i32;
+        let mut time = vpi_user::t_vpi_time {
+            type_: vpi_user::vpiSuppressTime as i32,
+            ..Default::default()
+        };
+        let mut value = vpi_user::t_vpi_value {
+            format: vpi_user::vpiSuppressVal as i32,
+            ..Default::default()
+        };
+        let handle = std::ptr::null_mut();
+        Ok(
+            unsafe { self._register_callback(reason, time, value, handle, react_vpi_rw) }
+        )
+    }
+    fn register_callback_ro(&self) -> SimpleResult<usize> {
+        const reason: i32 = vpi_user::cbReadOnlySynch as i32;
+        let mut time = vpi_user::t_vpi_time {
+            type_: vpi_user::vpiSuppressTime as i32,
+            ..Default::default()
+        };
+        let mut value = vpi_user::t_vpi_value {
+            format: vpi_user::vpiSuppressVal as i32,
+            ..Default::default()
+        };
+        let handle = std::ptr::null_mut();
+        Ok(
+            unsafe { self._register_callback(reason, time, value, handle, react_vpi_ro) }
+        )
+    }
+    fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
+        const reason: i32 = vpi_user::cbAfterDelay as i32;
+        let mut time = vpi_user::t_vpi_time {
+            type_: vpi_user::vpiSimTime as i32,
+            high: (t >> 32) as u32,
+            low: (t & 0xFFFF_FFFF) as u32,
+            ..Default::default()
+        };
+        let mut value = vpi_user::t_vpi_value {
+            format: vpi_user::vpiSuppressVal as i32,
+            ..Default::default()
+        };
+        let handle = std::ptr::null_mut();
+        Ok(
+            unsafe { self._register_callback(reason, time, value, handle, react_vpi_time) }
+        )
+    }
+    fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
+        const reason: i32 = vpi_user::cbValueChange as i32;
+        let mut time = vpi_user::t_vpi_time {
+            type_: vpi_user::vpiSuppressTime as i32,
+            ..Default::default()
+        };
+        let mut value = vpi_user::t_vpi_value {
+            format: vpi_user::vpiIntVal as i32,
+            ..Default::default()
+        };
+        let handle = sig_hdl as *mut u32;
+        Ok(
+            unsafe { self._register_callback(reason, time, value, handle, react_vpi_edge) }
+        )
+    }
     fn register_callback(&self, cb: SimCallback) -> SimpleResult<usize> {
         // reason
         let reason = match cb {
@@ -265,6 +349,45 @@ impl SimIf for Vpi {
     }
 }
 
+
+#[no_mangle]
+pub(crate) extern "C" fn react_vpi_edge(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    let hdl = unsafe { (*cb_data).obj as usize };
+    let mut edge = EdgeKind::Any;
+    if SIM_IF.get_size(hdl) == 1 {
+        unsafe {
+            if !(*cb_data).value.is_null() {
+                // this actually happens under some conditions?
+                edge = match (*(*cb_data).value).value.integer {
+                    0 => EdgeKind::Falling,
+                    _ => EdgeKind::Rising,
+                }
+            }
+        };
+    }
+    trigger::react_edge(hdl, edge);
+    0
+}
+
+#[no_mangle]
+pub(crate) extern "C" fn react_vpi_time(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    let t = unsafe { (*cb_data).decode_time() };
+    trigger::react_time(t);
+    0
+}
+
+#[no_mangle]
+pub(crate) extern "C" fn react_vpi_ro(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    trigger::react_ro();
+    0
+}
+
+#[no_mangle]
+pub(crate) extern "C" fn react_vpi_rw(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    trigger::react_rw();
+    0
+}
+
 #[no_mangle]
 pub(crate) extern "C" fn react_vpi(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
     let cb = unsafe {
@@ -312,7 +435,13 @@ fn get_time_precision() -> i8 {
 }
 
 impl vpi_user::t_cb_data {
-    pub fn to_sim_callback(&self) -> Option<SimCallback> {
+    pub(crate) unsafe fn decode_time(&self) -> u64 {
+        // if self.reason != vpi_user::cbAfterDelay as i32 {
+        //     panic!("Unexpected callback type. Expected 'Time'.");
+        // }
+        (u64::from((*self.time).high) << 32) + u64::from((*self.time).low)
+    }
+    pub(crate) fn to_sim_callback(&self) -> Option<SimCallback> {
         const CB_AFTER_DELAY: i32 = vpi_user::cbAfterDelay as i32;
         const CB_VALUE_CHANGE: i32 = vpi_user::cbValueChange as i32;
         const CB_READ_WRITE: i32 = vpi_user::cbReadWriteSynch as i32;
