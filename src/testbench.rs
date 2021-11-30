@@ -83,7 +83,9 @@ where
     matched: u32,
 }
 
-
+/*
+ * MONITOR
+ */
 #[derive(Clone, Copy)]
 pub struct Monitor<T: PartialEq>(AnyObj<MonitorInner<T>>);
 
@@ -109,16 +111,34 @@ impl<T: 'static + PartialEq> Monitor<T> {
                     true => s.add_exp(data),
                     false => s.add_recv(data),
                 }
+            } else {
+                panic!("Can't forward data to scoreboard. No scoreboard set");
             }
         })
     }
 }
-
-
 #[derive(Clone, Copy)]
-struct MonitorInner<T: PartialEq>
-{
+struct MonitorInner<T: PartialEq> {
     enable: bool,
     exp_not_recv: bool,
-    scoreboard: Option<Scoreboard<T>>
+    scoreboard: Option<Scoreboard<T>>,
+}
+
+/*
+ * CLOCK
+ */
+#[allow(unreachable_code)]
+pub async fn clock(clk: SimObject, period: u32, unit: &str) -> RstbResult {
+    let high_t = period / 2;
+    let low_t = period - high_t;
+    if period % 2 != 0 {
+        SIM_IF.log(&format!("Warning: Clock period {period}{unit} not dividable by 2. High time will be {high}{unit}; low time will be {low}{unit}.", period=period, unit=unit, high=high_t, low=low_t));
+    }
+    loop {
+        clk.set(0);
+        Trigger::timer(low_t as u64, unit).await;
+        clk.set(1);
+        Trigger::timer(high_t as u64, unit).await;
+    }
+    Ok(Val::None)
 }

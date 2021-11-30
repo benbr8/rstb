@@ -1,34 +1,21 @@
 #![allow(unreachable_code, unused_must_use)]
 use rstb::prelude::*;
-use rand::{Rng, thread_rng};
 
-#[allow(unreachable_code)]
-async fn clock(clk: SimObject, period: u32, unit: &str) -> RstbResult {
-    let half_period = period / 2;
-    loop {
-        clk.set(0);
-        Trigger::timer(half_period as u64, unit).await;
-        clk.set(1);
-        Trigger::timer(half_period as u64, unit).await;
-    }
-    Ok(Val::None)
-}
 
 async fn test_default(dut: SimObject) -> RstbResult {
     let clk = dut.c("clk");
     let req = dut.c("req");
     run_all_assertions();
+    // run_assertion("check_history");
+    Task::spawn(testbench::clock(clk, 8, "ns"));
 
-    Task::spawn(clock(clk, 8, "ns"));
-
-    for _ in 0..10_000 {
-        Trigger::rising_edge(clk).await;
-        Trigger::read_write().await;
-        let rnd = thread_rng().gen_weighted_bool(5);
-        req.set(rnd as i32);
+    clk.rising_edge_rw().await;
+    for _ in 0..100_000 {
+        req.set_u32((utils::rand() < 0.2) as u32);
+        clk.rising_edge_rw().await;
     }
-    disable_all_assertions();
-    Trigger::timer(100, "ns").await;
+    req.set(0);
+    utils::clock_cycles(clk, 5).await;
     Ok(Val::None)
 }
 
@@ -46,29 +33,29 @@ async fn assertion_setup(dut: SimObject) -> RstbResult {
     // Optionally an assertion can record and use past signal values, which are sampled after the trigger
     // event. Since this costs ressources, each signal to be recorded and the history depth must be specified.
 
+    let clk = dut.c("clk");
+    let req = dut.c("req");
+    let ack = dut.c("ack");
     add_assertion! (
-        "check_consequence",                                // name
-        Trigger::rising_edge(dut.c("clk")),                 // trigger
-        async move { check!(dut.c("req").u32() == 1) },     // condition
-        move |ctx: AssertionContext| { async move {         // checking function
+        "check_consequence",                     // name
+        Trigger::rising_edge(clk),               // trigger
+        async move { check!(req.u32() == 1) },   // condition
+        move |_| { async move {                  // checking function
             for _ in 0..3 {
-                ctx.trig().await;
+                clk.rising_edge_ro().await;
             }
-            Ok(Val::None)
+            check!(ack.u32() == 1)
         }}
     );
     add_assertion! (
-        "check_history",
-        Trigger::rising_edge(dut.c("clk")),
-        async move { check!(dut.c("ack").u32() == 1) },
-        req_3_before,
-        vec![dut.c("req")],                                 // signals of which to record history
+        "check_history",                                    // name
+        Trigger::rising_edge(clk),                          // trigger
+        async move { check!(ack.u32() == 1) },              // condition
+        move |ctx: AssertionContext| { async move {         // checking function
+            check!(ctx.sig_hist(req, 3) == Val::Int(1))
+        }},
+        vec![req],                                          // signals of which to record history
         3                                                   // depth of history
     );
     Ok(Val::None)
-}
-
-async fn req_3_before(ctx: AssertionContext) -> RstbResult {
-    let dut = ctx.dut();
-    check!(ctx.sig_hist(dut.c("req"), 3) == Val::Int(1))
 }

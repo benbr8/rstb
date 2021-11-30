@@ -6,6 +6,12 @@ module dut (
     input req,
     output reg ack);
 
+// initial begin
+//     $dumpfile ("dut.vcd");
+//     $dumpvars (0, dut);
+//     #1;
+// end
+
 reg [2:0] req_d;
 
 assign ack = req_d[2];

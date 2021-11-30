@@ -235,10 +235,9 @@ impl Assertion {
     }
     pub fn result(&self) -> RstbResult {
         let s = self.stats.get();
-        if s.triggered == s.passed && s.failed == 0 {
-            Ok(Val::None)
-        } else {
-            Err(Val::None)
+        match s.triggered == s.passed && s.failed == 0 {
+            true => Ok(Val::None),
+            false => Err(Val::None)
         }
     }
 }

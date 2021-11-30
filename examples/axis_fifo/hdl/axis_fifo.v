@@ -30,8 +30,7 @@ module axis_fifo
     #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH)
-    )
-    fifo (
+    ) fifo (
         .clk    (clk),
         .rst    (rst),
         .din    (s_tdata),
