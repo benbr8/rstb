@@ -142,19 +142,17 @@ fn start_of_simulation() {
                         Err(val) => fail_test(&format!("{:?}", val)),
                     }
                     Ok(Val::None)
-                },
-                "TEST_INNER_0",
+                }
             );
             unsafe { CURRENT_TEST = Some((test_handle.get_task().unwrap(), name)) };
             test_handle.await?;
             Ok(Val::None)
-        },
-        "TEST_0",
+        }
     );
 
     // schedule subsequent tests
     let n_tests = unsafe { TEST_VEC.len() };
-    for j in 0..n_tests {
+    for _ in 0..n_tests {
         if !unsafe { TEST_VEC.is_empty() } {
             join_handle = executor::Task::spawn_from_future(
                 async move {
@@ -167,16 +165,14 @@ fn start_of_simulation() {
                                 Err(val) => fail_test(&format!("{:?}", val)),
                             }
                             Ok(Val::None)
-                        },
-                        &format!("TEST_INNER_{}", j),
+                        }
                     );
                     unsafe {
                         CURRENT_TEST = Some((test_handle.get_task().unwrap(), name))
                     };
                     let _ = test_handle.await;
                     Ok(Val::None)
-                },
-                &format!("TEST_{}", j),
+                }
             );
         } else {
             break;

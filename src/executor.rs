@@ -7,6 +7,7 @@ use queues::{Queue, IsQueue};
 
 use crate::value::Val;
 use crate::RstbResult;
+#[allow(unused_imports)]
 use crate::sim_if::SIM_IF;
 
 
@@ -36,13 +37,8 @@ fn next_task() -> Option<Arc<Task>> {
 
 #[inline]
 pub(crate) fn run_once() {
-    loop {
-        let next = next_task();
-        if let Some(task) = next {
-            process_task(task);
-        } else {
-            break;
-        }
+    while let Some(task) = next_task() {
+        process_task(task);
     }
 }
 
@@ -66,7 +62,6 @@ fn process_task(task: Arc<Task>) {
             Poll::Ready(result) => Some(result),
         };
         if let Some(result) = result {
-            // SIM_IF.log(&format!("Task: {:?} comlete", task.name));
             let mut tx_slot = task.join_tx.lock().unwrap();
             if let Some(tx) = tx_slot.take() {
                 let _ = tx.send(result);
@@ -75,12 +70,10 @@ fn process_task(task: Arc<Task>) {
     } else {
         panic!("Scheduled completed or uninitialized task.");
     }
-    // SIM_IF.log(&format!("Processing done: {:?}", task.name));
 }
 
 #[derive(PartialEq)]
 enum TaskState {
-    Done(u32),
     Pending,
     Cancelled
 }
@@ -88,49 +81,42 @@ enum TaskState {
 pub struct Task {
     future: Mutex<Option<BoxFuture<'static, RstbResult>>>,
     state: Mutex<TaskState>,
-    name: Option<String>,
     join_tx: Mutex<Option<oneshot::Sender<RstbResult>>>,
 }
 impl Task {
     pub fn spawn(
         future: impl Future<Output = RstbResult> + Send + 'static
     ) -> JoinHandle {
-        Task::spawn_from_future(future, "forked")
+        Task::spawn_from_future(future)
     }
     pub fn spawn_from_future(
-        future: impl Future<Output = RstbResult> + Send + 'static,
-        name: &str,
+        future: impl Future<Output = RstbResult> + Send + 'static
     ) -> JoinHandle {
-        let (task, join_handle) = Task::new_from_future(future, name);
+        let (task, join_handle) = Task::new_from_future(future);
         schedule_task(task);
         join_handle
     }
     fn new_from_future(
         future: impl Future<Output = RstbResult> + Send + 'static,
-        name: &str,
     ) -> (Arc<Self>, JoinHandle) {
-        Task::new(future.boxed(), name)
+        Task::new(future.boxed())
     }
-    fn new(fut: BoxFuture<'static, RstbResult>, name: &str) -> (Arc<Self>, JoinHandle) {
+    fn new(fut: BoxFuture<'static, RstbResult>) -> (Arc<Self>, JoinHandle) {
         let (tx, mut join_handle) = new_join();
         let task = Self {
             future: Mutex::new(Some(fut)),
             state: Mutex::new(TaskState::Pending),
-            name: Some(name.to_string()),
             join_tx: Mutex::new(Some(tx)),
         };
         let arc_task = Arc::new(task);
 
-        // mutating join_handle will move it for some reason, so now set_task() returns itself.
-        // I don't know why this should be necessary but here we go.
-        join_handle = join_handle.set_task(arc_task.clone());
+        join_handle.set_task(&arc_task);
         (arc_task, join_handle)
     }
     pub fn new_uninitialized() -> Self {
         Self {
             future: Mutex::new(None),
             state: Mutex::new(TaskState::Pending),
-            name: None,
             join_tx: Mutex::new(None),
         }
     }
@@ -140,7 +126,6 @@ impl Task {
         *self.state.lock().unwrap() = TaskState::Cancelled;
         let mut tx_slot = self.join_tx.lock().unwrap();
         let tx = tx_slot.take().unwrap();
-        // SIM_IF.log(&format!("Cancelling: {:?}", self.name));
         let _ = tx.send(Ok(Val::None));
     }
 }
@@ -162,9 +147,8 @@ pub struct JoinHandle {
 }
 
 impl JoinHandle {
-    pub(crate) fn set_task(mut self, task: Arc<Task>) -> Self {
-        self.awaited_task.replace(task);
-        self
+    pub(crate) fn set_task(&mut self, task: &Arc<Task>) {
+        self.awaited_task.replace(task.clone());
     }
     pub(crate) fn get_task(&self) -> Option<Arc<Task>> {
         self.awaited_task

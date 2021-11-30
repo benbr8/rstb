@@ -9,7 +9,7 @@ use crate::executor;
 use crate::{
     RstbResult,
     signal::SimObject,
-    sim_if::{SimCallback, SIM_IF},
+    sim_if::SIM_IF,
     value::Val,
 };
 
@@ -183,7 +183,6 @@ impl Future for Trigger {
                 TrigKind::ReadWrite => unsafe {
                     READ_WRITE.callbacks.push_back(shared);
                     if READ_WRITE.handle.is_none() {
-                        let cb = SimCallback::ReadWrite;
                         let cb_hdl = SIM_IF.register_callback_rw().unwrap();
                         READ_WRITE.handle.replace(cb_hdl);
                     }
@@ -194,7 +193,6 @@ impl Future for Trigger {
                         true => READ_ONLY.callbacks.push_front(shared),
                     }
                     if READ_ONLY.handle.is_none() {
-                        let cb = SimCallback::ReadOnly;
                         let cb_hdl = SIM_IF.register_callback_ro().unwrap();
                         READ_ONLY.handle.replace(cb_hdl);
                     }

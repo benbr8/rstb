@@ -4,7 +4,7 @@ use std::ffi::CStr;
 use crate::sim_if::{ObjectKind, SimCallback, SimIf, SIM_IF};
 use crate::trigger;
 use crate::trigger::EdgeKind;
-use crate::{sv_vpi_user, vpi_user, SimpleResult, RstbResult};
+use crate::{sv_vpi_user, vpi_user, SimpleResult};
 
 pub(crate) struct Vpi {
     precision: i8,
@@ -230,11 +230,11 @@ impl SimIf for Vpi {
     }
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadWriteSynch as i32;
-        let mut time = vpi_user::t_vpi_time {
+        let time = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSuppressTime as i32,
             ..Default::default()
         };
-        let mut value = vpi_user::t_vpi_value {
+        let value = vpi_user::t_vpi_value {
             format: vpi_user::vpiSuppressVal as i32,
             ..Default::default()
         };
@@ -245,11 +245,11 @@ impl SimIf for Vpi {
     }
     fn register_callback_ro(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadOnlySynch as i32;
-        let mut time = vpi_user::t_vpi_time {
+        let time = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSuppressTime as i32,
             ..Default::default()
         };
-        let mut value = vpi_user::t_vpi_value {
+        let value = vpi_user::t_vpi_value {
             format: vpi_user::vpiSuppressVal as i32,
             ..Default::default()
         };
@@ -260,13 +260,13 @@ impl SimIf for Vpi {
     }
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbAfterDelay as i32;
-        let mut time = vpi_user::t_vpi_time {
+        let time = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSimTime as i32,
             high: (t >> 32) as u32,
             low: (t & 0xFFFF_FFFF) as u32,
             ..Default::default()
         };
-        let mut value = vpi_user::t_vpi_value {
+        let value = vpi_user::t_vpi_value {
             format: vpi_user::vpiSuppressVal as i32,
             ..Default::default()
         };
@@ -277,11 +277,11 @@ impl SimIf for Vpi {
     }
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbValueChange as i32;
-        let mut time = vpi_user::t_vpi_time {
+        let time = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSuppressTime as i32,
             ..Default::default()
         };
-        let mut value = vpi_user::t_vpi_value {
+        let value = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             ..Default::default()
         };
@@ -326,13 +326,13 @@ pub(crate) extern "C" fn react_vpi_time(cb_data: *mut vpi_user::t_cb_data) -> vp
 }
 
 #[no_mangle]
-pub(crate) extern "C" fn react_vpi_ro(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+pub(crate) extern "C" fn react_vpi_ro(_: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
     trigger::react_ro();
     0
 }
 
 #[no_mangle]
-pub(crate) extern "C" fn react_vpi_rw(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+pub(crate) extern "C" fn react_vpi_rw(_: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
     trigger::react_rw();
     0
 }
