@@ -1,12 +1,11 @@
 #![allow(unreachable_code, unused_must_use)]
 use rstb::prelude::*;
 
-
 async fn test_default(dut: SimObject) -> RstbResult {
     let clk = dut.c("clk");
     let req = dut.c("req");
-    run_all_assertions();
-    // run_assertion("check_history");
+    // run_all_assertions();
+    run_assertion("check_history");
     Task::spawn(testbench::clock(clk, 8, "ns"));
 
     clk.rising_edge_rw().await;

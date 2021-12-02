@@ -7,9 +7,11 @@ module fifo_fwft
    (
     input                   clk,
     input                   rst,
+
     input [DATA_WIDTH-1:0]  din,
     input                   wr_en,
     output                  full,
+
     output [DATA_WIDTH-1:0] dout,
     input                   rd_en,
     output                  empty);
@@ -89,7 +91,7 @@ module fifo_fwft
     end
 
     // mem instance
-    simple_dpram_sclk
+    dpram
     #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .DATA_WIDTH(DATA_WIDTH)

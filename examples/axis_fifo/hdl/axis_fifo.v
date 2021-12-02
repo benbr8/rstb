@@ -7,9 +7,11 @@ module axis_fifo
    (
     input                   clk,
     input                   rst,
+
     input [DATA_WIDTH-1:0]  s_tdata,
     input                   s_tvalid,
     output                  s_tready,
+
     output [DATA_WIDTH-1:0] m_tdata,
     input                   m_tready,
     output                  m_tvalid);
