@@ -49,4 +49,4 @@ There has been some work done to embed Python code using [PyO3](https://github.c
 * compile as C compatible dynamic library by adding `crate-type = ["cdylib"]` to `Cargo.toml` as with the examples using `cargo build --release`.
 * Run with your favorite simulator (see `run_questa.sh`/`run_icarus.sh`/`run_cadence.sh`)
 
-Run it on gitpod (using Icarus): https://gitpod.io/#https://github.com/benbr8/rstb
+Run it on gitpod (using Icarus Verilog): https://gitpod.io/#https://github.com/benbr8/rstb_examples
