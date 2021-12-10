@@ -17,6 +17,7 @@ queues = "*"
 lazy_mut = "*"
 num-format = "*"
 rand = "*"
+junit-report = "*"
 
 [features]
 default = ["vpi"]

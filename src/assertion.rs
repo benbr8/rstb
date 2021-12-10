@@ -6,7 +6,7 @@ use lazy_mut::lazy_mut;
 use std::cell::{Ref, RefMut};
 use std::collections::VecDeque;
 
-lazy_mut! { pub static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
+lazy_mut! { pub(crate) static mut ASSERTION_MAP: SeaMap<String, Assertion> = SeaMap::new(); }
 
 type Generator = RstbObj<Box<dyn Fn() -> BoxFuture<'static, RstbResult>>>;
 type SequenceGenerator = RstbObj<Box<dyn Fn(AssertionContext) -> BoxFuture<'static, RstbResult>>>;
@@ -45,12 +45,12 @@ macro_rules! check {
     };
 }
 
-#[macro_export]
-macro_rules! rose {
-    ($signal: expr) => {
-        if signal.i32() == ctx.hist()
-    };
-}
+// #[macro_export]
+// macro_rules! rose {
+//     ($signal: expr) => {
+//         if signal.i32() == ctx.hist()
+//     };
+// }
 
 // #[macro_export]
 // macro_rules! sequence {
@@ -285,7 +285,7 @@ pub(crate) fn tear_down_assertions() {
         ASSERTION_MAP.init();
         for (_, a) in ASSERTION_MAP.iter() {
             // Future will be dropped, once all references (`Trigger`s, `JoinHandle`s) are dropped
-            a.ctx.hist_mut().task_hdl.take();
+            let _ = a.ctx.hist_mut().task_hdl.take();
 
             // If assertion has triggered, but not completed, count it as failed
             let mut stats = a.stats.get_mut();
@@ -298,6 +298,7 @@ pub fn print_assertion_stats() {
     unsafe {
         ASSERTION_MAP.init();
         for (_, assertion) in ASSERTION_MAP.iter() {
+            SIM_IF.log("Assertion results:");
             SIM_IF.log(assertion.result_str().as_str());
         }
     }

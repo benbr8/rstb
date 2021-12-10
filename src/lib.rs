@@ -6,6 +6,8 @@ mod trigger;
 mod rstb_obj;
 mod value;
 mod assertion;
+mod test;
+mod junit;
 pub mod sim_if;
 pub mod utils;
 pub mod testbench;
@@ -35,7 +37,7 @@ pub mod vpi;
     non_camel_case_types,
     clippy::upper_case_acronyms
 )]
-pub mod sv_vpi_user;
+mod sv_vpi_user;
 #[cfg(feature = "vpi")]
 #[allow(
     non_upper_case_globals,
@@ -45,31 +47,27 @@ pub mod sv_vpi_user;
 )]
 mod vpi_user;
 
-use seamap::SeaMap;
 use executor::Task;
-use futures::future::BoxFuture;
-use lazy_mut::lazy_mut;
+use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
+use rstb_obj::RstbObjSafe;
 use sim_if::SIM_IF;
 use std::sync::Arc;
 use std::time;
 use value::Val;
-use assertion::print_assertion_stats;
+use test::{RstbTests, Test};
 
 
 pub type SimpleResult<T> = Result<T, ()>;
 pub type RstbResult = Result<Val, Val>;
 
-pub type VecTestFn = Vec<(
-    fn(signal::SimObject) -> BoxFuture<'static, RstbResult>,
-    String,
-)>;
 
 static SIM_START_TIME: OnceCell<time::Instant> = OnceCell::new();
-lazy_mut! { static mut TEST_VEC: VecTestFn = Vec::new(); }
-static mut CURRENT_TEST: Option<(Arc<Task>, String)> = None;
-lazy_mut! { static mut TEST_RESULTS: SeaMap<String, (bool, String)> = SeaMap::new(); }
+lazy_static! { static ref TEST_START_TIME: RstbObjSafe<Option<time::Instant>> = RstbObjSafe::new(None); }
 
+// static mut CURRENT_TEST: Option<(Arc<Task>, String)> = None;
+lazy_static!{ static ref CURRENT_TEST: RstbObjSafe<Option<(Arc<Task>, RstbObjSafe<test::Test>)>> = RstbObjSafe::new(None); }
+ 
 #[macro_export]
 macro_rules! run_with_vpi {
     ($( $i:ident ),+) => {
@@ -83,11 +81,11 @@ macro_rules! run_with_vpi {
         #[no_mangle]
         pub extern "C" fn vpi_entry_point() {
             // add tests to execution vector
-            let mut tests: VecTestFn = Vec::new();
-            $(tests.push((|sim_root| { $i(sim_root).boxed() }, stringify!($i).to_string()));)+
+            let mut tests = RstbTests::new();
+            $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
 
             // add failed as default test results
-            $(init_test_result(stringify!($i).to_string());)+
+            // $(init_test_result(stringify!($i).to_string());)+
 
             vpi_init(tests);
         }
@@ -95,17 +93,17 @@ macro_rules! run_with_vpi {
 }
 pub fn pass_test(msg: &str) {
     // Passes test that has not already failed/passed
-    if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
-        set_test_result(name, true, msg.to_string());
-        tear_down_test(test);
+    if let Some((task, test)) = CURRENT_TEST.get().take() {
+        test.with_mut(|mut t| t.set_result(Ok(Val::String(msg.to_string()))));
+        tear_down_test(task);
     }
 }
 
 pub fn fail_test(msg: &str) {
     // Fails test that has not already failed/passed
-    if let Some((test, name)) = unsafe { CURRENT_TEST.take() } {
-        set_test_result(name, false, msg.to_string());
-        tear_down_test(test);
+    if let Some((task, test)) = CURRENT_TEST.get().take() {
+        test.with_mut(|mut t| t.set_result(Err(Val::String(msg.to_string()))));
+        tear_down_test(task);
     }
 }
 
@@ -117,12 +115,6 @@ fn tear_down_test(test: Arc<Task>) {
     test.cancel();
 }
 
-pub fn set_test_result(name: String, passed: bool, msg: String) {
-    unsafe { *TEST_RESULTS.get_mut(&name).unwrap() = (passed, msg) };
-}
-pub fn init_test_result(name: String) {
-    unsafe { TEST_RESULTS.insert(name, (false, "Test result defaults to failed!".to_string())) };
-}
 
 fn start_of_simulation() {
     // start timer
@@ -132,51 +124,84 @@ fn start_of_simulation() {
     let sim_root = signal::SimObject::get_root().unwrap();
 
     // schedule first test
-    let (test, name) = unsafe { TEST_VEC.remove(0) };
-    let mut join_handle = executor::Task::spawn_from_future(
-        async move {
-            let test_handle = executor::Task::spawn_from_future(
-                async move {
-                    match (test)(sim_root).await {
-                        Ok(val) => pass_test(&format!("{:?}", val)),
-                        Err(val) => fail_test(&format!("{:?}", val)),
-                    }
-                    Ok(Val::None)
-                }
-            );
-            unsafe { CURRENT_TEST = Some((test_handle.get_task().unwrap(), name)) };
-            test_handle.await?;
-            Ok(Val::None)
-        }
-    );
+    // let (test, name) = unsafe { TEST_VEC.remove(0) };
+    // let mut join_handle = executor::Task::spawn_from_future(
+    //     async move {
+    //         let test_handle = executor::Task::spawn_from_future(
+    //             async move {
+    //                 TEST_START_TIME.with_mut(|t| {
+    //                     t.replace(time::Instant::now());
+    //                 });
+    //                 match (test)(sim_root).await {
+    //                     Ok(val) => pass_test(&format!("{:?}", val)),
+    //                     Err(val) => fail_test(&format!("{:?}", val)),
+    //                 }
 
-    // schedule subsequent tests
-    let n_tests = unsafe { TEST_VEC.len() };
-    for _ in 0..n_tests {
-        if !unsafe { TEST_VEC.is_empty() } {
-            join_handle = executor::Task::spawn_from_future(
-                async move {
-                    let _ = join_handle.await;
-                    let (test, name) = unsafe { TEST_VEC.remove(0) };
-                    let test_handle = executor::Task::spawn_from_future(
-                        async move {
-                            match (test)(sim_root).await {
-                                Ok(val) => pass_test(&format!("{:?}", val)),
-                                Err(val) => fail_test(&format!("{:?}", val)),
-                            }
-                            Ok(Val::None)
-                        }
-                    );
-                    unsafe {
-                        CURRENT_TEST = Some((test_handle.get_task().unwrap(), name))
-                    };
-                    let _ = test_handle.await;
-                    Ok(Val::None)
+    //                 Ok(Val::None)
+    //             }
+    //         );
+    //         unsafe { CURRENT_TEST = Some((test_handle.get_task().unwrap(), name)) };
+    //         test_handle.await?;
+    //         Ok(Val::None)
+    //     }
+    // );
+
+    // // schedule subsequent tests
+    // let n_tests = unsafe { TEST_VEC.len() };
+    // for _ in 0..n_tests {
+    //     if !unsafe { TEST_VEC.is_empty() } {
+    //         join_handle = executor::Task::spawn_from_future(
+    //             async move {
+    //                 let _ = join_handle.await;
+    //                 let (test, name) = unsafe { TEST_VEC.remove(0) };
+    //                 let test_handle = executor::Task::spawn_from_future(
+    //                     async move {
+    //                         match (test)(sim_root).await {
+    //                             Ok(val) => pass_test(&format!("{:?}", val)),
+    //                             Err(val) => fail_test(&format!("{:?}", val)),
+    //                         }
+    //                         Ok(Val::None)
+    //                     }
+    //                 );
+    //                 unsafe {
+    //                     CURRENT_TEST = Some((test_handle.get_task().unwrap(), name))
+    //                 };
+    //                 let _ = test_handle.await;
+    //                 Ok(Val::None)
+    //             }
+    //         );
+    //     } else {
+    //         break;
+    //     }
+    // }
+
+    let tests = test::TESTS.get().unwrap();
+    let mut join_handle = None;
+    for test in tests.iter() {
+        join_handle = Some(executor::Task::spawn_from_future(
+            async move {
+                if let Some(handle) = join_handle {
+                    let _ = handle.await;
                 }
-            );
-        } else {
-            break;
-        }
+                let test_handle = executor::Task::spawn_from_future(
+                    async move {
+                        let generator = test.get().generator;
+                        match (generator)(sim_root).await {
+                            Ok(val) => pass_test(&format!("{:?}", val)),
+                            Err(val) => fail_test(&format!("{:?}", val)),
+                        }
+                        Ok(Val::None)
+                    }
+                );
+                let test_task = test_handle.get_task().unwrap().clone();
+                CURRENT_TEST.with_mut(move |mut c| {
+                    let test = test.clone();
+                    let _ = c.replace((test_task, test));
+                });
+                let _ = test_handle.await;
+                Ok(Val::None)
+            }
+        ));
     }
 
     // execute first simulation tick
@@ -188,29 +213,28 @@ fn end_of_simulation() {
     let final_sim_time = SIM_IF.get_sim_time("ns");
     let sim_speed = final_sim_time as f64 / duration;
 
-    print_assertion_stats();
     SIM_IF.log(&format!("Simulation time: {} ns", final_sim_time));
     SIM_IF.log(&format!("Real time: {:.3} s", duration));
     SIM_IF.log(&format!("Simulation speed: {:.3} ns/s", sim_speed));
 
-
-    for (name, (passed,msg)) in unsafe {TEST_RESULTS.drain()} {
-        let mut result = "Failed";
-        if passed {
-            result = "Passed";
-        }
+    assertion::print_assertion_stats();
+    for (name, (passed,msg)) in unsafe { test::TEST_RESULTS.drain() } {
+        let result = match passed {
+            true => "Passed",
+            false => "Failed",
+        };
         SIM_IF.log(&format!("Result of test {}: {}({})", name, result, msg));
     }
-
 }
 
 /*
  *  VPI
  */
 
-pub fn vpi_init(tests: VecTestFn) {
+pub fn vpi_init(tests: test::RstbTests) {
     // set tests to execute
-    unsafe { *TEST_VEC = tests };
+    // unsafe { *TEST_VEC = tests };
+    test::TESTS.set(tests).unwrap();
 
     unsafe {
         let mut cb_data = vpi_user::t_cb_data {

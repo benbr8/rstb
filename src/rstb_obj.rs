@@ -91,14 +91,17 @@ pub(crate) fn clear_objects() {
 pub struct RstbObj<T>(Rc<RefCell<T>>);
 
 impl<T> RstbObj<T> {
-    pub fn new(data: T) -> RstbObj<T> {
-        RstbObj(Rc::new(RefCell::new(data)))
+    pub fn new(val: T) -> RstbObj<T> {
+        RstbObj(Rc::new(RefCell::new(val)))
     }
     pub fn get(&self) -> Ref<T> {
         (*self.0).borrow()
     }
     pub fn get_mut(&self) -> RefMut<T> {
         (*self.0).borrow_mut()
+    }
+    pub fn replace(&self, val: T) {
+        self.0.replace(val);
     }
 }
 
@@ -114,6 +117,7 @@ unsafe impl<T> Sync for RstbObj<T> {}
 
 
 // safe RustObj implementation, for if there appear issues with the unsafe one
+#[derive(Debug)]
 pub struct RstbObjSafe<T>(Arc<Mutex<T>>);
 
 impl<T> RstbObjSafe<T> {
@@ -126,6 +130,11 @@ impl<T> RstbObjSafe<T> {
     pub fn get_mut(&self) -> MutexGuard<T> {
         (*self.0).try_lock().unwrap()
     }
+    pub fn with_mut<F: FnOnce(MutexGuard<T>)>(&self, f: F)
+    {
+        let guard = self.0.lock().unwrap();
+        f(guard);
+    }
 }
 
 impl<T> Clone for RstbObjSafe<T> {
@@ -133,3 +142,8 @@ impl<T> Clone for RstbObjSafe<T> {
         RstbObjSafe(self.0.clone())
     }
 }
+
+// pub(crate) fn with_mutex<T, F: FnOnce(MutexGuard<T>)>(mutex: &Mutex<T>, f: F) {
+//     let guard = mutex.lock().unwrap();
+//     f(guard);
+// }
