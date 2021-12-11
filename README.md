@@ -21,23 +21,21 @@ When comparing to Python, tests in Rust are more verbose and writing them is a b
 - [x] Means to pass/fail a test
 - [x] Joining multiple tasks
 - [x] Concurrent assertions built on top of the base library incl. signal history lookup
+- [x] JUnit XML output for CI
+- [x] a nicer way to start tests from command line -> Check out [rstbrun](https://crates.io/crates/rstbrun) ([GitHub](https://github.com/benbr8/rstbrun))
 
 ### Feature roadmap
 - [ ] add support for real types.
 - [ ] vector slices and arrays
 - [ ] documentation
 - [ ] a logging solution and some fancy output formatting
-- [ ] a nicer way to start tests from command line
-- [ ] junit output for CI
 - [ ] Work on VHPI (No simulator I have access to supports it)
 - [ ] Support more Simulators
 - [ ] ...
 
-There has been some work done to embed Python code using [PyO3](https://github.com/PyO3/pyo3) with the purpose of running cocotb tests on a Rstb backend. At some point this could be taken up again, although this eats up most of the performance advantage compared to the Rust only approach.
-
 ### Not on the roadmap
 * Windows (although it shouldn't be a big issue)
-* Mentor/Siemens Foreign language interface
+* Mentor/Siemens Foreign Language interface
 
 ### Rstb works with
 * Questa/ModelSim
