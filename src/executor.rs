@@ -27,17 +27,8 @@ pub(crate) fn clear_ready_queue() {
 
 
 #[inline]
-fn next_task() -> Option<Arc<Task>> {
-    if let Ok(task) = unsafe { READY_QUEUE.remove() } {
-        Some(task)
-    } else {
-        None
-    }
-}
-
-#[inline]
 pub(crate) fn run_once() {
-    while let Some(task) = next_task() {
+    while let Ok(task) = unsafe { READY_QUEUE.remove() } {
         process_task(task);
     }
 }

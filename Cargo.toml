@@ -18,6 +18,7 @@ lazy_mut = "*"
 num-format = "*"
 rand = "*"
 junit-report = "*"
+prettytable-rs = "*"
 
 [features]
 default = ["vpi"]

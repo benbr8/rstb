@@ -167,7 +167,7 @@ impl SimIf for Vpi {
         ((time_obj.high as u64) << 32) + time_obj.low as u64
     }
     fn log(&self, msg: &str) {
-        let t = self.get_sim_time("ns");
+        let t = self.get_sim_time_f64("ns");
         let int = t.floor() as u64;
         let mut frac_str = format!("{:.3}", t % 1.0);
         frac_str.remove(0);

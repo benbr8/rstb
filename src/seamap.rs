@@ -1,9 +1,10 @@
-use std::{borrow::Borrow, collections::{HashMap, hash_map::{Drain, Iter}}, hash::Hash};
 
+
+use std::{borrow::Borrow, collections::{HashMap, hash_map::{Drain, Iter}}, hash::Hash};
 
 pub struct SeaMap<K, V>(HashMap<K, V, fasthash::sea::Hash64>);
 
-
+#[allow(dead_code)]
 impl<K, V> SeaMap<K, V>
 where
     K: Eq + Hash,

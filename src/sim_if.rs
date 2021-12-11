@@ -63,15 +63,28 @@ pub trait SimIf {
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize>;
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize>;
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()>;
-    fn get_sim_time(&self, unit: &str) -> f64 {
+    fn get_sim_time(&self, unit: &str) -> u64 {
+        let precision = self.get_sim_precision();
+        let scale = time_scale(unit);
+        if scale < precision {
+            panic!("Provided time unit is smaller than simulator precision.")
+        }
+        let steps = self.get_sim_time_steps();
+        let steps_per_unit = 10_u64.pow((scale-precision) as u32);
+        if steps % steps_per_unit != 0 {
+            panic!("Current simulation time cannot accurately be converted to specified precision.")
+        }
+        steps / steps_per_unit
+    }
+    fn get_sim_time_f64(&self, unit: &str) -> f64 {
         // this function does not preserve precision, so don't use carelessly
         let t = self.get_sim_time_steps() as f64;
         let precision = self.get_sim_precision();
-        ldexp10(t, precision - time_scale(unit).unwrap())
+        ldexp10(t, precision - time_scale(unit))
     }
     fn get_sim_steps(&self, time: f64, unit: &str) -> u64 {
         let precision = self.get_sim_precision();
-        let steps = ldexp10(time, time_scale(unit).unwrap() - precision);
+        let steps = ldexp10(time, time_scale(unit) - precision);
         if steps % 1.0 == 0.0 {
             steps as u64
         } else {
@@ -79,32 +92,32 @@ pub trait SimIf {
                 "Can't convert time {} {} to sim steps without rounding (sim precision: {})",
                 time,
                 unit,
-                scale_time(precision).unwrap()
+                scale_time(precision)
             );
         }
     }
 }
 
-fn time_scale(unit: &str) -> SimpleResult<i8> {
+fn time_scale(unit: &str) -> i8 {
     match unit {
-        "fs" => Ok(-15),
-        "ps" => Ok(-12),
-        "ns" => Ok(-9),
-        "us" => Ok(-6),
-        "ms" => Ok(-3),
-        "sec" => Ok(0),
-        _ => Err(()),
+        "fs" => -15,
+        "ps" => -12,
+        "ns" => -9,
+        "us" => -6,
+        "ms" => -3,
+        "s" | "sec" => 0,
+        _ => panic!("Did not recognize time unit.")
     }
 }
-fn scale_time(unit: i8) -> SimpleResult<String> {
+fn scale_time(unit: i8) -> String {
     match unit {
-        -15 => Ok("fs".to_string()),
-        -12 => Ok("ps".to_string()),
-        -9 => Ok("ns".to_string()),
-        -6 => Ok("us".to_string()),
-        -3 => Ok("ms".to_string()),
-        0 => Ok("sec".to_string()),
-        _ => Err(()),
+        -15 => "fs".to_string(),
+        -12 => "ps".to_string(),
+        -9 => "ns".to_string(),
+        -6 => "us".to_string(),
+        -3 => "ms".to_string(),
+        0 => "sec".to_string(),
+        _ => panic!("Provided precision does not have a name."),
     }
 }
 

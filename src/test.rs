@@ -31,22 +31,18 @@ impl RstbTests {
 pub struct Test {
     pub name: String,
     pub generator: fn(signal::SimObject) -> BoxFuture<'static, RstbResult>,
+    pub time_secs: f64,
+    pub sim_time_ns: u64,
     pub result: Option<RstbResult>,
 }
 
 impl Test {
     pub fn new(name: String, generator: fn(signal::SimObject) -> BoxFuture<'static, RstbResult>) -> Self {
-        Self { name, generator, result: None }
+        Self { name, generator, time_secs: 0.0, sim_time_ns: 0, result: None }
     }
     pub fn set_result(&mut self, result: RstbResult) {
         self.result = Some(result);
     }
 }
 
-lazy_mut! { pub(crate) static mut TEST_RESULTS: SeaMap<String, (bool, String)> = SeaMap::new(); }
-
 pub(crate) static TESTS: OnceCell<RstbTests> = OnceCell::new();
-
-pub fn init_test_result(name: String) {
-    unsafe { TEST_RESULTS.insert(name, (false, "Test result defaults to failed!".to_string())) };
-}
