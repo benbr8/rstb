@@ -29,6 +29,7 @@ mod vhpi_user;
     clippy::upper_case_acronyms
 )]
 pub mod vpi;
+pub mod verilator;
 
 #[cfg(feature = "vpi")]
 #[allow(
@@ -198,85 +199,4 @@ fn end_of_simulation() {
     assertion::print_assertion_stats();
 
     junit::create_junit_xml();
-}
-
-/*
- *  VPI
- */
-
-pub fn vpi_init(tests: test::RstbTests) {
-    // set tests to execute
-    test::TESTS.set(tests).unwrap();
-
-    unsafe {
-        let mut cb_data = vpi_user::t_cb_data {
-            reason: vpi_user::cbStartOfSimulation as i32,
-            cb_rtn: Some(vpi_start_of_simulation),
-            ..Default::default()
-        };
-        vpi_user::vpi_register_cb(&mut cb_data);
-    };
-    unsafe {
-        let mut cb_data = vpi_user::t_cb_data {
-            reason: vpi_user::cbEndOfSimulation as i32,
-            cb_rtn: Some(vpi_end_of_simulation),
-            ..Default::default()
-        };
-        vpi_user::vpi_register_cb(&mut cb_data);
-    };
-}
-
-#[no_mangle]
-extern "C" fn vpi_start_of_simulation(_cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
-    start_of_simulation();
-    0
-}
-
-#[no_mangle]
-extern "C" fn vpi_end_of_simulation(_cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
-    end_of_simulation();
-    0
-}
-
-/*
- *  VHPI
- */
-
-#[cfg(feature = "vhpi")]
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-extern "C" fn vhpi_start_of_simulation(_cb_data: *const vhpi_user::vhpiCbDataT) {
-    eprintln!("vhpi_start_of_simulation");
-    start_of_simulation();
-}
-
-#[cfg(feature = "vhpi")]
-#[allow(clippy::missing_safety_doc)]
-#[no_mangle]
-extern "C" fn vhpi_end_of_simulation(_cb_data: *const vhpi_user::vhpiCbDataT) {
-    end_of_simulation();
-}
-
-#[cfg(feature = "vhpi")]
-pub fn vhpi_init() {
-    unsafe {
-        let mut cb_data = vhpi_user::vhpiCbDataT {
-            reason: vhpi_user::vhpiCbStartOfSimulation as i32,
-            cb_rtn: Some(vhpi_start_of_simulation),
-            ..Default::default()
-        };
-        vhpi_user::vhpi_register_cb(&mut cb_data, 0);
-        let mut cb_data = vhpi_user::vhpiCbDataT {
-            reason: vhpi_user::vhpiCbEndOfSimulation as i32,
-            cb_rtn: Some(vhpi_end_of_simulation),
-            ..Default::default()
-        };
-        vhpi_user::vhpi_register_cb(&mut cb_data, 0);
-    };
-}
-
-#[cfg(feature = "vhpi")]
-#[no_mangle]
-pub extern "C" fn vhpi_entry_point() {
-    vhpi_init();
 }

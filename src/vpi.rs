@@ -3,6 +3,7 @@ use std::ffi::CStr;
 
 use crate::sim_if::{ObjectKind, SimCallback, SimIf, SIM_IF};
 use crate::trigger;
+use crate::test;
 use crate::trigger::EdgeKind;
 use crate::{sv_vpi_user, vpi_user, SimpleResult};
 
@@ -216,6 +217,7 @@ impl SimIf for Vpi {
     fn get_root_handle(&self) -> SimpleResult<usize> {
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
+        dbg!(iterator);
         if iterator.is_null() {
             return Err(());
         }
@@ -435,3 +437,44 @@ fn check_null<T>(ptr: *mut T) -> SimpleResult<*mut T> {
         Ok(ptr)
     }
 }
+
+
+
+/*
+ *  VPI
+ */
+
+pub fn vpi_init(tests: test::RstbTests) {
+    // set tests to execute
+    test::TESTS.set(tests).unwrap();
+
+    unsafe {
+        let mut cb_data = vpi_user::t_cb_data {
+            reason: vpi_user::cbStartOfSimulation as i32,
+            cb_rtn: Some(vpi_start_of_simulation),
+            ..Default::default()
+        };
+        vpi_user::vpi_register_cb(&mut cb_data);
+    };
+    unsafe {
+        let mut cb_data = vpi_user::t_cb_data {
+            reason: vpi_user::cbEndOfSimulation as i32,
+            cb_rtn: Some(vpi_end_of_simulation),
+            ..Default::default()
+        };
+        vpi_user::vpi_register_cb(&mut cb_data);
+    };
+}
+
+#[no_mangle]
+extern "C" fn vpi_start_of_simulation(_cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    crate::start_of_simulation();
+    0
+}
+
+#[no_mangle]
+extern "C" fn vpi_end_of_simulation(_cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
+    crate::end_of_simulation();
+    0
+}
+ 

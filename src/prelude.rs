@@ -13,7 +13,7 @@ pub use crate::utils;
 #[cfg(feature = "vhpi")]
 pub use crate::vhpi_init;
 #[cfg(feature = "vpi")]
-pub use crate::vpi_init;
+pub use crate::vpi::vpi_init;
 pub use crate::{add_assertion, check, combine, fail_test, pass_test};
 pub use crate::test::{Test, RstbTests};
 pub use crate::RstbResult;
