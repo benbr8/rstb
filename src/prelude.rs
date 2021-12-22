@@ -10,8 +10,10 @@ pub use crate::sim_if::SIM_IF;
 pub use crate::trigger::Trigger;
 pub use crate::value::Val;
 pub use crate::utils;
+#[cfg(feature = "verilator")]
+pub use crate::verilator::verilator_init;
 #[cfg(feature = "vhpi")]
-pub use crate::vhpi_init;
+pub use crate::vhpi::vhpi_init;
 #[cfg(feature = "vpi")]
 pub use crate::vpi::vpi_init;
 pub use crate::{add_assertion, check, combine, fail_test, pass_test};

@@ -1,7 +1,8 @@
 use num_format::{Locale, ToFormattedString};
 use std::ffi::CStr;
 
-use crate::sim_if::{ObjectKind, SimCallback, SimIf, SIM_IF};
+use crate::sim_if::{SimCallback, SimIf, SIM_IF};
+use crate::signal::{ObjectKind, SimObject};
 use crate::trigger;
 use crate::test;
 use crate::trigger::EdgeKind;
@@ -42,7 +43,13 @@ impl Vpi {
 }
 
 impl SimIf for Vpi {
-    fn set_value_int(&self, obj: usize, value: i32, force: bool) -> SimpleResult<()> {
+    fn set_value_i32(&self, obj: &SimObject, value: i32, force: bool) -> SimpleResult<()> {
+        assert!(matches!(obj.kind, ObjectKind::Int(_)),
+            "Can't set signal {} of kind {:?} using integer type.",
+            obj.name(),
+            obj.kind );
+        assert!(obj.size() <= 32, "Maximum bits is 32 for i32().");
+
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: value },
@@ -57,7 +64,7 @@ impl SimIf for Vpi {
         }
         unsafe {
             vpi_user::vpi_put_value(
-                obj as *mut u32,
+                obj.handle() as *mut u32,
                 &mut val,
                 &mut time,
                 flag,
@@ -66,13 +73,14 @@ impl SimIf for Vpi {
         // TODO: error??
         Ok(())
     }
-    fn get_value_int(&self, obj: usize) -> SimpleResult<i32> {
+
+    fn get_value_i32(&self, obj: &SimObject) -> SimpleResult<i32> {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
                 format: vpi_user::vpiIntVal as i32,
                 value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
             };
-            vpi_user::vpi_get_value(obj as *mut u32, &mut val);
+            vpi_user::vpi_get_value(obj.handle as *mut u32, &mut val);
             if val.format == vpi_user::vpiIntVal as i32 {
                 Ok(val.value.integer)
             } else {
@@ -80,7 +88,16 @@ impl SimIf for Vpi {
             }
         }
     }
-    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> SimpleResult<()> {
+    fn set_value_u32(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
+        let value_i32: i32 = unsafe { std::mem::transmute(value) };
+        self.set_value_i32(obj, value_i32, force)
+    }
+    fn get_value_u32(&self, obj: &SimObject) -> SimpleResult<u32> {
+        let val_i32 = self.get_value_i32(obj)?;
+        Ok(unsafe { std::mem::transmute::<i32, u32>(val_i32) })
+    }
+
+    fn set_value_bin(&self, obj: &SimObject, value: String, force: bool) -> SimpleResult<()> {
         let mut val = value;
         val.push('\0');
         let mut val = vpi_user::t_vpi_value {
@@ -97,7 +114,7 @@ impl SimIf for Vpi {
         }
         unsafe {
             vpi_user::vpi_put_value(
-                obj as *mut u32,
+                obj.handle as *mut u32,
                 &mut val,
                 &mut time,
                 flag,
@@ -107,13 +124,13 @@ impl SimIf for Vpi {
         Ok(())
 
     }
-    fn get_value_bin(&self, obj: usize) -> SimpleResult<String> {
+    fn get_value_bin(&self, obj: &SimObject) -> SimpleResult<String> {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
                 format: vpi_user::vpiBinStrVal as i32,
                 value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
             };
-            vpi_user::vpi_get_value(obj as *mut u32, &mut val);
+            vpi_user::vpi_get_value(obj.handle as *mut u32, &mut val);
             if val.format == vpi_user::vpiBinStrVal as i32 {
                 let s = CStr::from_ptr(check_null(val.value.str_)?)
                     .to_owned()
@@ -125,14 +142,14 @@ impl SimIf for Vpi {
             }
         }
     }
-    fn release(&self, obj: usize) -> SimpleResult<()> {
+    fn release(&self, obj: &SimObject) -> SimpleResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
             value: vpi_user::t_vpi_value__bindgen_ty_1 { integer: 0 },
         };
         unsafe {
             vpi_user::vpi_put_value(
-                obj as *mut u32,
+                obj.handle as *mut u32,
                 &mut val,
                 std::ptr::null_mut(),
                 vpi_user::vpiReleaseFlag as i32,
@@ -194,13 +211,13 @@ impl SimIf for Vpi {
             | vpi_user::vpiIntegerVar
             | sv_vpi_user::vpiBitVar
             | sv_vpi_user::vpiLongIntVar
-            | sv_vpi_user::vpiIntVar => ObjectKind::Bits,
+            | sv_vpi_user::vpiIntVar => ObjectKind::Int(self.get_size(obj)),
             _ => ObjectKind::Other,
         }
     }
-    fn is_signed(&self, obj_handle: usize) -> bool {
-        (unsafe { vpi_user::vpi_get(vpi_user::vpiSigned as i32, obj_handle as *mut u32) } != 0)
-    }
+    // fn is_signed(&self, obj_handle: usize) -> bool {
+    //     (unsafe { vpi_user::vpi_get(vpi_user::vpiSigned as i32, obj_handle as *mut u32) } != 0)
+    // }
     fn get_full_name(&self, obj: usize) -> SimpleResult<String> {
         unsafe {
             let ptr = vpi_user::vpi_get_str(vpi_user::vpiFullName as i32, obj as *mut u32);
@@ -214,10 +231,10 @@ impl SimIf for Vpi {
     fn get_sim_precision(&self) -> i8 {
         self.precision
     }
-    fn get_root_handle(&self) -> SimpleResult<usize> {
+    fn get_root_object(&self) -> SimpleResult<SimObject> {
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
-        dbg!(iterator);
+        // dbg!(iterator);
         if iterator.is_null() {
             return Err(());
         }
@@ -228,7 +245,7 @@ impl SimIf for Vpi {
         if !unsafe { vpi_user::vpi_scan(iterator).is_null() } {
             unsafe { vpi_user::vpi_free_object(iterator) };
         }
-        Ok(root as usize)
+        Ok(SimObject::new_from_handle(root as usize))
     }
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadWriteSynch as i32;
@@ -443,6 +460,29 @@ fn check_null<T>(ptr: *mut T) -> SimpleResult<*mut T> {
 /*
  *  VPI
  */
+
+
+#[macro_export]
+macro_rules! run_with_vpi {
+    ($( $i:ident ),+) => {
+        #[allow(non_upper_case_globals)]
+        #[no_mangle]
+        pub static vlog_startup_routines: [Option<extern "C" fn()>; 2] =
+            [Some(vpi_entry_point), None];
+
+
+        #[allow(clippy::vec_init_then_push)]
+        #[no_mangle]
+        pub extern "C" fn vpi_entry_point() {
+            CRATE_NAME.set(std::module_path!().to_string()).unwrap();
+            // add tests to execution vector
+            let mut tests = RstbTests::new();
+            $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
+
+            vpi_init(tests);
+        }
+    }
+}
 
 pub fn vpi_init(tests: test::RstbTests) {
     // set tests to execute

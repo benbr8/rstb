@@ -1,15 +1,22 @@
 use crate::SimpleResult;
+use crate::signal::{ObjectKind, SimObject};
 
 #[cfg(feature = "vhpi")]
 use crate::vhpi;
 #[cfg(feature = "vpi")]
 use crate::vpi;
+#[cfg(feature = "verilator")]
+use crate::verilator;
 use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref SIM_IF: Box<dyn SimIf + Sync> = new_interface();
 }
 
+#[cfg(feature = "verilator")]
+fn new_interface() -> Box<dyn SimIf + Sync> {
+    Box::new(verilator::Verilator{})
+}
 #[cfg(feature = "vpi")]
 fn new_interface() -> Box<dyn SimIf + Sync> {
     Box::new(vpi::Vpi::new())
@@ -19,6 +26,7 @@ fn new_interface() -> Box<dyn SimIf + Sync> {
     Box::new(vhpi::Vhpi {})
 }
 
+
 #[derive(Debug, Hash, Clone, Eq, PartialEq)]
 pub enum SimCallback {
     Time(u64),
@@ -27,37 +35,40 @@ pub enum SimCallback {
     ReadOnly,
 }
 
-pub enum ObjectValue {
-    Integer(i32),
-    Bit(char),
-    BitVector(String),
-    Other,
-}
 
-#[derive(Copy, Clone, Debug)]
-pub enum ObjectKind {
-    Bits,
-    Real,
-    Array,
-    Other,
-}
-
-#[allow(clippy::result_unit_err)]
+#[allow(clippy::result_unit_err, unused_variables)]
 pub trait SimIf {
-    fn set_value_int(&self, handle: usize, value: i32, force: bool) -> SimpleResult<()>;
-    fn get_value_int(&self, obj: usize) -> SimpleResult<i32>;
-    fn set_value_bin(&self, obj: usize, value: String, force: bool) -> SimpleResult<()>;
-    fn get_value_bin(&self, obj: usize) -> SimpleResult<String>;
-    fn release(&self, obj: usize) -> SimpleResult<()>;
+    fn set_value_i32(&self, obj: &SimObject, value: i32, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_i32(&self, obj: &SimObject) -> SimpleResult<i32> { unimplemented!() }
+
+    fn set_value_u8(&self, obj: &SimObject, value: u8, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_u8(&self, obj: &SimObject) -> SimpleResult<u8> { unimplemented!() }
+
+    fn set_value_u16(&self, obj: &SimObject, value: u16, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_u16(&self, obj: &SimObject) -> SimpleResult<u16> { unimplemented!() }
+    
+    fn set_value_u32(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_u32(&self, obj: &SimObject) -> SimpleResult<u32> { unimplemented!() }
+    
+    fn set_value_u64(&self, obj: &SimObject, value: u64, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_u64(&self, obj: &SimObject) -> SimpleResult<u64> { unimplemented!() }
+    
+    fn set_value_u128(&self, obj: &SimObject, value: u128, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_u128(&self, obj: &SimObject) -> SimpleResult<u128> { unimplemented!() }
+
+    fn set_value_bin(&self, obj: &SimObject, value: String, force: bool) -> SimpleResult<()> { unimplemented!() }
+    fn get_value_bin(&self, obj: &SimObject) -> SimpleResult<String> { unimplemented!() }
+
+    fn release(&self, obj: &SimObject) -> SimpleResult<()>;
     fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize>;
     fn get_sim_time_steps(&self) -> u64;
     fn log(&self, s: &str);
     fn get_size(&self, obj_handle: usize) -> i32;
     fn get_kind(&self, obj_handle: usize) -> ObjectKind;
-    fn is_signed(&self, obj_handle: usize) -> bool;
+    // fn is_signed(&self, obj_handle: usize) -> bool;
     fn get_full_name(&self, obj: usize) -> SimpleResult<String>;
     fn get_sim_precision(&self) -> i8;
-    fn get_root_handle(&self) -> SimpleResult<usize>;
+    fn get_root_object(&self) -> SimpleResult<SimObject>;
     fn register_callback_rw(&self) -> SimpleResult<usize>;
     fn register_callback_ro(&self) -> SimpleResult<usize>;
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize>;

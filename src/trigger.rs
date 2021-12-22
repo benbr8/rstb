@@ -86,8 +86,7 @@ pub enum TrigKind {
 pub struct Trigger {
     kind: TrigKind,
     awaited: bool,
-    // high exec prio currently only implemented for ReadOnly
-    high_exec_prio: bool,
+    high_exec_prio: bool,    // high exec prio currently only implemented for ReadOnly
 }
 
 impl Trigger {
@@ -198,6 +197,7 @@ impl Future for Trigger {
                     }
                 },
                 TrigKind::Timer(t) => {
+                    assert!(t != 0, "Time must be a positive number.");
                     // Add current time to key since since simulator will send back absolute time, not delta
                     let abs_time = t + SIM_IF.get_sim_time_steps();
                     if let Some(callbacks) = unsafe { TIMER_MAP.get_mut(abs_time) } {
@@ -282,7 +282,6 @@ pub(crate) fn react_ro() {
 
 #[inline]
 pub(crate) fn react_time(t: u64) {
-    // SIM_IF.log("Reacting time");
     let cbh = unsafe { TIMER_MAP.remove(t).expect("Did not expect Timer callback at given time") };
     wake(cbh.callbacks);
 }

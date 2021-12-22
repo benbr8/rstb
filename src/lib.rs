@@ -29,7 +29,9 @@ mod vhpi_user;
     clippy::upper_case_acronyms
 )]
 pub mod vpi;
+#[cfg(feature = "verilator")]
 pub mod verilator;
+mod verilator_user;
 
 #[cfg(feature = "vpi")]
 #[allow(
@@ -47,6 +49,14 @@ mod sv_vpi_user;
     clippy::upper_case_acronyms
 )]
 mod vpi_user;
+
+// Only one interface type allowed
+#[cfg(any(
+    all(feature = "vpi", any(feature = "vhpi", feature = "verilator")),
+    all(feature = "vhpi", any(feature = "vpi", feature = "verilator")),
+    all(feature = "verilator", any(feature = "vpi", feature = "vhpi")),
+))]
+compile_error!("Only one interface feature can be enabled by default: vpi OR vhpi OR verilator");
 
 use executor::Task;
 use lazy_static::lazy_static;
@@ -72,27 +82,6 @@ lazy_static! {
 }
 pub static CRATE_NAME: OnceCell<String> = OnceCell::new();
 
-#[macro_export]
-macro_rules! run_with_vpi {
-    ($( $i:ident ),+) => {
-        #[allow(non_upper_case_globals)]
-        #[no_mangle]
-        pub static vlog_startup_routines: [Option<extern "C" fn()>; 2] =
-            [Some(vpi_entry_point), None];
-
-
-        #[allow(clippy::vec_init_then_push)]
-        #[no_mangle]
-        pub extern "C" fn vpi_entry_point() {
-            CRATE_NAME.set(std::module_path!().to_string()).unwrap();
-            // add tests to execution vector
-            let mut tests = RstbTests::new();
-            $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
-
-            vpi_init(tests);
-        }
-    }
-}
 pub fn pass_test(msg: &str) {
     // Passes test that has not already failed/passed
     if let Some((task, test)) = CURRENT_TEST.get().take() {

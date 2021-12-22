@@ -29,3 +29,4 @@ prettytable-rs = "0.8.0"
 default = ["vpi"]
 vpi = []
 vhpi = []
+verilator = []

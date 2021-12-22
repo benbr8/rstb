@@ -3,7 +3,7 @@
 use lazy_mut::lazy_mut;
 use intmap::IntMap;
 use crate::{RstbResult, seamap::SeaMap};
-use crate::sim_if::{ObjectKind, SIM_IF};
+use crate::sim_if::SIM_IF;
 use crate::SimpleResult;
 use crate::trigger::Trigger;
 use crate::value::Val;
@@ -17,11 +17,20 @@ lazy_mut! {
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimObject {
-    handle: usize,
-    kind: ObjectKind,
-    size: i32,
-    signed: bool,
+    pub(crate) handle: usize,
+    pub(crate) kind: ObjectKind
 }
+
+
+#[derive(Copy, Clone, Debug)]
+pub enum ObjectKind {
+    Int(i32),
+    Real,
+    Array(i32),
+    Hier,
+    Other,
+}
+
 
 impl SimObject {
     pub fn handle(&self) -> usize {
@@ -39,11 +48,10 @@ impl SimObject {
     }
 
     pub fn size(&self) -> i32 {
-        self.size
-    }
-
-    pub fn is_signed(&self) -> bool {
-        SIM_IF.is_signed(self.handle)
+        match self.kind {
+            ObjectKind::Int(size) | ObjectKind::Array(size) => size,
+            _ => panic!("SimObject does not have a size.")
+        }
     }
 
     pub fn is_modifiable(&self) -> bool {
@@ -85,12 +93,10 @@ impl SimObject {
         Ok(SimObject::new_from_handle(handle))
     }
 
-    fn new_from_handle(handle: usize) -> Self {
+    pub(crate) fn new_from_handle(handle: usize) -> Self {
         let signal = SimObject {
             handle,
             kind: SIM_IF.get_kind(handle),
-            size: SIM_IF.get_size(handle),
-            signed: SIM_IF.is_signed(handle),
         };
         unsafe {
             SIG_MAP.insert(handle as u64, signal);
@@ -100,7 +106,7 @@ impl SimObject {
     }
 
     pub fn get_root() -> SimpleResult<Self> {
-        Ok(SimObject::new_from_handle(SIM_IF.get_root_handle()?))
+        SIM_IF.get_root_object()
     }
 
     // pub fn discover_nets(&self) -> Vec<SimObject> {
@@ -113,36 +119,15 @@ impl SimObject {
     // }
 
     pub fn i32(&self) -> i32 {
-        if matches!(self.kind, ObjectKind::Bits) && self.size <= 32 {
-            let val = SIM_IF.get_value_int(self.handle()).unwrap() as i64;
-            // Some simulators don't return negative value for any vector size (Questa)
-            let ceil = 1i64 << (self.size - 1);
-            if val >= ceil {
-                (-2 * ceil + val) as i32
-            } else {
-                val as i32
-            }
-        } else {
-            panic!("Couldn't get value of {} as i32 type.", self.name());
-        }
+        SIM_IF.get_value_i32(self).unwrap()
     }
 
     pub fn u32(&self) -> u32 {
-        if matches!(self.kind, ObjectKind::Bits) && self.size <= 32 {
-            let val = SIM_IF.get_value_int(self.handle()).unwrap() as i64;
-            let ceil = 1i64 << self.size;
-            if val < 0 {
-                (val + ceil) as u32
-            } else {
-                val as u32
-            }
-        } else {
-            panic!("Couldn't get value of {} as u32 type.", self.name());
-        }
+        SIM_IF.get_value_u32(self).unwrap()
     }
 
     pub fn bin(&self) -> String {
-        SIM_IF.get_value_bin(self.handle).unwrap()
+        SIM_IF.get_value_bin(self).unwrap()
     }
 
     pub fn c(&self, name: &str) -> Self {
@@ -151,45 +136,23 @@ impl SimObject {
     }
 
     pub fn release(&self) {
-        SIM_IF.release(self.handle).unwrap();
+        SIM_IF.release(self).unwrap();
     }
 
     pub fn set(&self, val: i32) {
-        self._set(val, false);
+        SIM_IF.set_value_i32(&self, val, false).unwrap();
     }
 
     pub fn force(&self, val: i32) {
-        self._set(val, true);
-    }
-
-    #[inline]
-    fn _set(&self, val: i32, force: bool) {
-        if !matches!(self.kind, ObjectKind::Bits) {
-            panic!(
-                "Can't set signal {} of kind {:?} using set() or set_u32()",
-                self.name(),
-                self.kind
-            );
-        }
-        SIM_IF.set_value_int(self.handle, val, force).unwrap();
+        SIM_IF.set_value_i32(&self, val, true).unwrap();
     }
 
     pub fn set_u32(&self, val: u32) {
-        self._set_u32(val, false)
+        SIM_IF.set_value_u32(&self, val, false).unwrap();
     }
 
     pub fn force_u32(&self, val: u32) {
-        self._set_u32(val, true)
-    }
-
-    #[inline]
-    fn _set_u32(&self, val: u32, force: bool) {
-        if val >= 1 << 31 {
-            let val_i32: i32 = unsafe { std::mem::transmute(val) };
-            self._set(val_i32, force);
-        } else {
-            self._set(val as i32, force);
-        }
+        SIM_IF.set_value_u32(&self, val, true).unwrap();
     }
 
     pub fn set_bin(&self, val: &str) {
@@ -203,12 +166,16 @@ impl SimObject {
     #[inline]
     fn _set_bin(&self, val: &str, force: bool) {
         // remove '_' and 0b
+        let size = match self.kind {
+            ObjectKind::Int(size) => size,
+            _ => panic!("Can't set {} using set_bin()", self.name())
+        };
         let stripped = val.replace("0b", "");
         let stripped = stripped.replace("_", "");
-        if stripped.len() == self.size as usize {
+        if stripped.len() == size as usize {
             let is_valid = stripped.chars().all(valid_char);
             if is_valid {
-                SIM_IF.set_value_bin(self.handle, stripped, force).unwrap();
+                SIM_IF.set_value_bin(self, stripped, force).unwrap();
             } else {
                 panic!("Can't set {} to {}. Invalid characters.", self.name(), val);
             }
