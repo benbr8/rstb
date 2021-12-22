@@ -1,6 +1,6 @@
 use num_format::{Locale, ToFormattedString};
-use std::ffi::CStr;
-use std::ops::Add;
+use std::ffi::CString;
+use std::sync::atomic::AtomicBool;
 
 use crate::sim_if::{SimCallback, SimIf, SIM_IF};
 use crate::signal::{ObjectKind, SimObject};
@@ -18,18 +18,19 @@ use crate::verilator_user::*;
 enum CbKind {
     Time(u64),
     Edge(usize),
-}
-
-lazy_static! {
-    static ref CB_HDL_MAP: RstbObjSafe<IntMap<CbKind>> = RstbObjSafe::new(IntMap::new());
+    Ro,
 }
 
 // TODO: use unsafe for performance?
 lazy_static! {
-    static ref TIME_SET: RstbObjSafe<BTreeSet<u64>> = RstbObjSafe::new(BTreeSet::new());
+    static ref CB_HDL_CNT: RstbObjSafe<usize> = RstbObjSafe::new(0);
 }
 lazy_static! {
-    static ref CB_HDL_CNT: RstbObjSafe<usize> = RstbObjSafe::new(0);
+    static ref CB_HDL_MAP: RstbObjSafe<IntMap<CbKind>> = RstbObjSafe::new(IntMap::new());
+}
+static RO: AtomicBool = AtomicBool::new(false);
+lazy_static! {
+    static ref TIME_SET: RstbObjSafe<BTreeSet<u64>> = RstbObjSafe::new(BTreeSet::new());
 }
 
 pub(crate) struct Verilator {
@@ -106,8 +107,12 @@ impl SimIf for Verilator {
         panic!("Verilator does not support RW callbacks");
     }
     fn register_callback_ro(&self) -> SimpleResult<usize> {
-        // this should be called after eval
-        todo!()
+        RO.store(true, std::sync::atomic::Ordering::Relaxed);
+        let cb_hdl = new_cb_hdl();
+        CB_HDL_MAP.with_mut(|mut map| {
+            map.insert(cb_hdl as u64, CbKind::Ro);
+        });
+        Ok(cb_hdl)
     }
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         let t_abs = t + unsafe { vl_get_time() };
@@ -148,20 +153,6 @@ pub(crate) extern "C" fn react_vl_edge() {
     todo!()
 }
 
-fn react_vl_time(t: u64) {
-    trigger::react_time(t);
-}
-
-#[no_mangle]
-pub(crate) extern "C" fn react_vl_ro()  {
-    todo!()
-}
-
-#[no_mangle]
-pub(crate) extern "C" fn react_vl_rw() {
-    todo!()
-}
-
 fn check_null<T>(ptr: *mut T) -> SimpleResult<*mut T> {
     if ptr.is_null() {
         Err(())
@@ -182,16 +173,27 @@ pub fn verilator_init(tests: test::RstbTests) {
     // set tests to execute
     test::TESTS.set(tests).unwrap();
     unsafe { vl_init(); }
+    unsafe { 
+        let a = CString::new("TOP.dff").unwrap();
+        let b = a.as_ptr();
+        vl_print_scope(b);
+    }
     crate::start_of_simulation();
-    unsafe { run_sim(); }
+    run_sim();
+    crate::end_of_simulation();
 }
 
-unsafe fn handle_time_callbacks() {
-    let t = vl_get_time();
+fn handle_time_callbacks() {
+    let t = unsafe { vl_get_time() };
     if TIME_SET.with_mut(|mut set|{
         set.remove(&t) 
     }) {
-        react_vl_time(t);
+        trigger::react_time(t);
+    }
+}
+fn handle_ro_callbacks() {
+    if RO.fetch_and(false, std::sync::atomic::Ordering::Relaxed) {
+        trigger::react_ro();
     }
 }
 
@@ -201,19 +203,20 @@ fn get_next_time() -> Option<u64> {
     })
 }
 
-unsafe fn run_sim() {
+fn run_sim() {
     // let mut next_time = None;
     loop {
         handle_time_callbacks();
-        vl_eval();
+        unsafe { vl_eval(); }
         // handle_edge_callbacks();
+        handle_ro_callbacks();
         if let Some(next_time) = get_next_time() {
-            vl_set_time(next_time);
+            unsafe { vl_set_time(next_time); }
         } else {
             break;
         }
     }
-    vl_finalize();
+    unsafe { vl_finalize(); }
 }
 
 
@@ -226,7 +229,7 @@ macro_rules! run_with_verilator {
             // add tests to execution vector
             let mut tests = RstbTests::new();
             // $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
-            $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i().boxed() }));)+
+            $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
 
             verilator_init(tests);
         }

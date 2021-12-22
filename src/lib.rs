@@ -133,7 +133,6 @@ fn start_of_simulation() {
                     test.time_secs = time_start.elapsed().as_secs_f64();
                     test.sim_time_ns = SIM_IF.get_sim_time("ns") - sim_time_start;
                 });
-
                 match result {
                     Ok(val) => pass_test(&format!("{:?}", val)),
                     Err(val) => fail_test(&format!("{:?}", val)),
