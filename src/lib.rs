@@ -188,3 +188,19 @@ fn end_of_simulation() {
 
     junit::create_junit_xml();
 }
+
+#[inline]
+#[cold]
+fn cold() {}
+
+#[inline]
+fn likely(b: bool) -> bool {
+    if !b { cold() }
+    b
+}
+
+#[inline]
+fn unlikely(b: bool) -> bool {
+    if b { cold() }
+    b
+}

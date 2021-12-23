@@ -9,7 +9,7 @@ use crate::trigger::Trigger;
 use crate::value::Val;
 
 lazy_mut! {
-    static mut SIG_MAP_NAME: SeaMap<String, usize> = SeaMap::new();
+    static mut SIG_NAME_MAP: SeaMap<String, usize> = SeaMap::new();
 }
 lazy_mut! {
     static mut SIG_MAP: IntMap<SimObject> = IntMap::new();
@@ -44,7 +44,7 @@ impl SimObject {
     pub fn name(&self) -> String {
         SIM_IF
             .get_full_name(self)
-            .expect("Couldn't get name of ObjectInner")
+            .unwrap()
     }
 
     pub fn size(&self) -> i32 {
@@ -54,13 +54,13 @@ impl SimObject {
         }
     }
 
-    pub fn is_modifiable(&self) -> bool {
-        !matches!(self.kind, ObjectKind::Other)
-    }
+    // pub fn is_modifiable(&self) -> bool {
+    //     !matches!(self.kind, ObjectKind::Other)
+    // }
 
-    pub fn has_value(&self) -> bool {
-        !matches!(self.kind, ObjectKind::Other)
-    }
+    // pub fn has_value(&self) -> bool {
+    //     !matches!(self.kind, ObjectKind::Other)
+    // }
 
     #[allow(clippy::needless_question_mark)] // it actueally is necessary
     pub fn get_child(&self, name: &str) -> SimpleResult<Self> {
@@ -72,15 +72,17 @@ impl SimObject {
 
     #[allow(clippy::clone_on_copy)]
     pub fn from_handle(handle: usize) -> SimpleResult<Self> {
+        // unsafe { SIG_MAP.init(); } // somehow explicit init is required
         if let Some(signal) = unsafe { SIG_MAP.get(handle as u64) } {
             Ok(signal.clone())
         } else {
-            Err(())
+            Ok(SimObject::new_from_handle(handle))
         }
     }
 
     pub fn from_name(full_name: &str) -> SimpleResult<Self> {
-        let handle = unsafe { SIG_MAP_NAME.get(full_name) }
+        // unsafe { SIG_NAME_MAP.init(); } // somehow explicit init is required
+        let handle = unsafe { SIG_NAME_MAP.get(full_name) }
             .map(|h| h.to_owned());
         match handle {
             Some(h) => SimObject::from_handle(h),
@@ -89,24 +91,37 @@ impl SimObject {
     }
 
     fn new_from_name(full_name: &str) -> SimpleResult<Self> {
-        let handle = SIM_IF.get_handle_by_name(full_name)?;
-        Ok(SimObject::new_from_handle(handle))
-    }
+        let obj = SIM_IF.get_object_by_name(full_name)?;
+        unsafe {
+            SIG_MAP.insert(obj.handle as u64, obj);
+            SIG_NAME_MAP.insert(full_name.to_string(), obj.handle);
+        }
+        Ok(obj)
+    } 
 
-    pub(crate) fn new_from_handle(handle: usize) -> Self {
-        let signal = SimObject {
+    fn new_from_handle(handle: usize) -> Self {
+        let obj = SimObject {
             handle,
             kind: SIM_IF.get_kind(handle),
         };
         unsafe {
-            SIG_MAP.insert(handle as u64, signal);
-            SIG_MAP_NAME.insert(signal.name(), handle);
-        };
-        signal
+            SIG_MAP.insert(handle as u64, obj);
+            SIG_NAME_MAP.insert(obj.name(), handle);
+        }
+        obj
     }
 
     pub fn get_root() -> SimpleResult<Self> {
-        SIM_IF.get_root_object()
+        unsafe {
+            SIG_MAP.init();         // somehow explicit initialization is needed
+            SIG_NAME_MAP.init();
+        }
+        let obj = SIM_IF.get_root_object()?;
+        unsafe {
+            SIG_MAP.insert(obj.handle as u64, obj);
+            SIG_NAME_MAP.insert(obj.name(), obj.handle);
+        }
+        Ok(obj)
     }
 
     // pub fn discover_nets(&self) -> Vec<SimObject> {
@@ -118,18 +133,18 @@ impl SimObject {
     //     signal_list
     // }
 
+    pub fn get(&self) -> u32 {
+        SIM_IF.get_value(self).unwrap()
+    }
+    pub fn u32(&self) -> u32 {
+        SIM_IF.get_value(self).unwrap()
+    }
     pub fn i32(&self) -> i32 {
         SIM_IF.get_value_i32(self).unwrap()
     }
-
-    pub fn u32(&self) -> u32 {
-        SIM_IF.get_value_u32(self).unwrap()
-    }
-
     pub fn bin(&self) -> String {
         SIM_IF.get_value_bin(self).unwrap()
     }
-
     pub fn c(&self, name: &str) -> Self {
         self.get_child(name)
             .unwrap_or_else(|_| panic!("Could not get object with name {}.{}", self.name(), name))
@@ -139,12 +154,12 @@ impl SimObject {
         SIM_IF.release(self).unwrap();
     }
 
-    pub fn set(&self, val: i32) {
-        SIM_IF.set_value_i32(&self, val, false).unwrap();
+    pub fn force(&self, val: u32) {
+        SIM_IF.set_value(&self, val, true).unwrap();
     }
 
-    pub fn force(&self, val: i32) {
-        SIM_IF.set_value_i32(&self, val, true).unwrap();
+    pub fn set(&self, val: u32) {
+        SIM_IF.set_value(&self, val, false).unwrap();
     }
 
     pub fn set_u32(&self, val: u32) {

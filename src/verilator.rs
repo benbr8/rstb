@@ -33,46 +33,66 @@ lazy_static! {
     static ref TIME_SET: RstbObjSafe<BTreeSet<u64>> = RstbObjSafe::new(BTreeSet::new());
 }
 
+
+
 pub(crate) struct Verilator {
 }
 
 impl Verilator {
 }
 
-#[inline]
-fn force_panic(force: bool) {
-    if force {
-        panic!("Force/Release not supported for Verilator.")
-    }
-}
-
 // #[allow()]
 impl SimIf for Verilator {
-    fn set_value_i32(&self, obj: &SimObject, value: i32, force: bool) -> SimpleResult<()> {
+    fn set_value(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
         force_panic(force);
-        todo!()
-    }
-    fn get_value_i32(&self, obj: &SimObject) -> SimpleResult<i32> {
-        todo!();
-    }
-    fn set_value_bin(&self, obj: &SimObject, value: String, force: bool) -> SimpleResult<()> {
-        force_panic(force);
-        todo!()
-    }
-    fn get_value_bin(&self, _: &SimObject) -> SimpleResult<String> {
-        panic!("Getting value as binary string is not implemented for Verilator.");
-    }
-    fn release(&self, _: &SimObject) -> SimpleResult<()> {
-        force_panic(true);
-        Ok(())
-    }
-    fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize> {
-        let cstr = CString::new(name).unwrap();
-        let scope_hdl = unsafe { vl_get_scope_handle_by_name(cstr.as_ptr()) };
-        if scope_hdl != 0 {
-            return Ok(scope_hdl);
+        if let ObjectKind::Int(size) = obj.kind {
+            match size {
+                8 => unsafe { vl_set_var_u8(obj.handle, value as u8) },
+                16 => unsafe { vl_set_var_u16(obj.handle, value as u16) },
+                32 => unsafe { vl_set_var_u32(obj.handle, value as u32) },
+                _ =>  { crate::cold(); return Err(()) }
+            };
+            Ok(())
+        } else {
+            Err(())
         }
-        todo!() // split string at last '.' -> get scope -> get var of scope
+    }
+    fn get_value(&self, obj: &SimObject) -> SimpleResult<u32> {
+        if let ObjectKind::Int(size) = obj.kind {
+            match size {
+                8 => unsafe { Ok(vl_get_var_u8(obj.handle) as u32) },
+                16 => unsafe { Ok(vl_get_var_u16(obj.handle) as u32) },
+                32 => unsafe { Ok(vl_get_var_u32(obj.handle)) },
+                _ =>  { crate::cold(); Err(()) }
+            }
+        } else {
+            Err(())
+        }
+    }
+    fn get_object_by_name(&self, name: &str) -> SimpleResult<SimObject> {
+        let cstr = CString::new(name).unwrap();
+        let scope_hdl = unsafe { vl_get_scope_by_name(cstr.as_ptr()) };
+        if scope_hdl != 0 {
+            return Ok(SimObject {
+                handle: scope_hdl,
+                kind: ObjectKind::Hier,
+            })
+        }
+        // if name is not a scope, split string on last '.' -> try to get scope and var in scope
+        if let Some((scope_name, var_name)) = name.rsplit_once('.') {
+            let cstr = CString::new(scope_name).unwrap();
+            let scope_hdl = unsafe { vl_get_scope_by_name(cstr.as_ptr()) };
+            if scope_hdl != 0 {
+                let cstr = CString::new(var_name).unwrap();
+                let var_hdl = unsafe { vl_get_var_by_name(scope_hdl, cstr.as_ptr()) };
+                let var_size = type_to_size(unsafe { vl_get_var_type(var_hdl) }).unwrap();
+                return Ok(SimObject {
+                    handle: var_hdl,
+                    kind: ObjectKind::Int(var_size),
+                });
+            }
+        }
+        Err(())
         // refactor into get_obj_by_name --> return SimObject instead of handle
     }
     fn get_sim_time_steps(&self) -> u64 {
@@ -94,7 +114,7 @@ impl SimIf for Verilator {
                 let cstr = CStr::from_ptr(vl_get_scope_name(obj.handle));
                 Ok(cstr.to_str().unwrap().to_string())
             },
-            _ => todo!()
+            _ => panic!("Verilator does not expose full name from var handle.")
         }
     }
     #[allow(unused_variables)]
@@ -106,7 +126,7 @@ impl SimIf for Verilator {
         panic!("Verilator does not expose simulation precision")
     }
     fn get_root_object(&self) -> SimpleResult<SimObject> {
-        let hdl = unsafe { vl_get_root_scope_handle() };
+        let hdl = unsafe { vl_get_root_scope() };
         match hdl {
             0 => Err(()),
             _ => Ok(SimObject{
@@ -239,5 +259,23 @@ macro_rules! run_with_verilator {
 
             verilator_init(tests);
         }
+    }
+}
+
+
+#[inline]
+fn force_panic(force: bool) {
+    if force {
+        panic!("Force/Release not supported for Verilator.")
+    }
+}
+
+fn type_to_size(type_: u8) -> SimpleResult<i32> {
+    match type_ {
+        2 => Ok(8),
+        3 => Ok(16),
+        4 => Ok(32),
+        5 => Ok(64),
+        _ => Err(())
     }
 }

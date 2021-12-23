@@ -43,6 +43,13 @@ impl Vpi {
 }
 
 impl SimIf for Vpi {
+    fn set_value(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
+        self.set_value_i32(obj, value as i32, force)
+    }
+    fn get_value(&self, obj: &SimObject) -> SimpleResult<u32> {
+        Ok(self.get_value_i32(obj)? as u32)
+    }
+
     fn set_value_i32(&self, obj: &SimObject, value: i32, force: bool) -> SimpleResult<()> {
         assert!(matches!(obj.kind, ObjectKind::Int(_)),
             "Can't set signal {} of kind {:?} using integer type.",
@@ -157,7 +164,7 @@ impl SimIf for Vpi {
         };
         Ok(())
     }
-    fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize> {
+    fn get_object_by_name(&self, name: &str) -> SimpleResult<SimObject> {
         let mut name_string = name.to_string();
         name_string.push('\0');
 
@@ -169,9 +176,12 @@ impl SimIf for Vpi {
         };
         if hdl == 0 {
             self.log(&format!("Couldn't get handle from name {}", name));
-            Result::Err(())
+            Err(())
         } else {
-            Result::Ok(hdl)
+            Ok(SimObject {
+                handle: hdl,
+                kind: self.get_kind(hdl),
+            })
         }
     }
     fn get_sim_time_steps(&self) -> u64 {
@@ -245,7 +255,7 @@ impl SimIf for Vpi {
         if !unsafe { vpi_user::vpi_scan(iterator).is_null() } {
             unsafe { vpi_user::vpi_free_object(iterator) };
         }
-        Ok(SimObject::new_from_handle(root as usize))
+        Ok(SimObject::from_handle(root as usize)?)
     }
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadWriteSynch as i32;

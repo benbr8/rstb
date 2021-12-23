@@ -38,6 +38,9 @@ pub enum SimCallback {
 
 #[allow(clippy::result_unit_err, unused_variables)]
 pub trait SimIf {
+    fn set_value(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()>;
+    fn get_value(&self, obj: &SimObject) -> SimpleResult<u32>;
+
     fn set_value_i32(&self, obj: &SimObject, value: i32, force: bool) -> SimpleResult<()> { unimplemented!() }
     fn get_value_i32(&self, obj: &SimObject) -> SimpleResult<i32> { unimplemented!() }
 
@@ -59,8 +62,8 @@ pub trait SimIf {
     fn set_value_bin(&self, obj: &SimObject, value: String, force: bool) -> SimpleResult<()> { unimplemented!() }
     fn get_value_bin(&self, obj: &SimObject) -> SimpleResult<String> { unimplemented!() }
 
-    fn release(&self, obj: &SimObject) -> SimpleResult<()>;
-    fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize>;
+    fn release(&self, obj: &SimObject) -> SimpleResult<()>  { unimplemented!() }
+    fn get_object_by_name(&self, name: &str) -> SimpleResult<SimObject>;
     fn get_sim_time_steps(&self) -> u64;
     fn log(&self, s: &str);
     fn get_size(&self, obj_handle: usize) -> i32;
