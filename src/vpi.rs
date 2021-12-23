@@ -218,9 +218,9 @@ impl SimIf for Vpi {
     // fn is_signed(&self, obj_handle: usize) -> bool {
     //     (unsafe { vpi_user::vpi_get(vpi_user::vpiSigned as i32, obj_handle as *mut u32) } != 0)
     // }
-    fn get_full_name(&self, obj: usize) -> SimpleResult<String> {
+    fn get_full_name(&self, obj: &SimObject) -> SimpleResult<String> {
         unsafe {
-            let ptr = vpi_user::vpi_get_str(vpi_user::vpiFullName as i32, obj as *mut u32);
+            let ptr = vpi_user::vpi_get_str(vpi_user::vpiFullName as i32, obj.handle as *mut u32);
             let s = CStr::from_ptr(check_null(ptr)?)
                 .to_owned()
                 .into_string()

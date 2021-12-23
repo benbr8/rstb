@@ -1,5 +1,5 @@
 use num_format::{Locale, ToFormattedString};
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::sync::atomic::AtomicBool;
 
 use crate::sim_if::{SimCallback, SimIf, SIM_IF};
@@ -59,15 +59,21 @@ impl SimIf for Verilator {
         force_panic(force);
         todo!()
     }
-    fn get_value_bin(&self, obj: &SimObject) -> SimpleResult<String> {
+    fn get_value_bin(&self, _: &SimObject) -> SimpleResult<String> {
         panic!("Getting value as binary string is not implemented for Verilator.");
     }
-    fn release(&self, obj: &SimObject) -> SimpleResult<()> {
+    fn release(&self, _: &SimObject) -> SimpleResult<()> {
         force_panic(true);
         Ok(())
     }
     fn get_handle_by_name(&self, name: &str) -> SimpleResult<usize> {
-        todo!()
+        let cstr = CString::new(name).unwrap();
+        let scope_hdl = unsafe { vl_get_scope_handle_by_name(cstr.as_ptr()) };
+        if scope_hdl != 0 {
+            return Ok(scope_hdl);
+        }
+        todo!() // split string at last '.' -> get scope -> get var of scope
+        // refactor into get_obj_by_name --> return SimObject instead of handle
     }
     fn get_sim_time_steps(&self) -> u64 {
         unsafe { vl_get_time() }
@@ -82,8 +88,14 @@ impl SimIf for Verilator {
     fn get_kind(&self, obj: usize) -> ObjectKind {
         todo!()
     }
-    fn get_full_name(&self, obj: usize) -> SimpleResult<String> {
-        todo!()
+    fn get_full_name(&self, obj: &SimObject) -> SimpleResult<String> {
+        match obj.kind {
+            ObjectKind::Hier => unsafe { 
+                let cstr = CStr::from_ptr(vl_get_scope_name(obj.handle));
+                Ok(cstr.to_str().unwrap().to_string())
+            },
+            _ => todo!()
+        }
     }
     #[allow(unused_variables)]
     fn get_sim_time(&self, unit: &str) -> u64 {
@@ -94,7 +106,7 @@ impl SimIf for Verilator {
         panic!("Verilator does not expose simulation precision")
     }
     fn get_root_object(&self) -> SimpleResult<SimObject> {
-        let hdl = unsafe { vl_get_root_handle() };
+        let hdl = unsafe { vl_get_root_scope_handle() };
         match hdl {
             0 => Err(()),
             _ => Ok(SimObject{
@@ -173,11 +185,6 @@ pub fn verilator_init(tests: test::RstbTests) {
     // set tests to execute
     test::TESTS.set(tests).unwrap();
     unsafe { vl_init(); }
-    unsafe { 
-        let a = CString::new("TOP.dff").unwrap();
-        let b = a.as_ptr();
-        vl_print_scope(b);
-    }
     crate::start_of_simulation();
     run_sim();
     crate::end_of_simulation();
@@ -228,7 +235,6 @@ macro_rules! run_with_verilator {
             CRATE_NAME.set(std::module_path!().to_string()).unwrap();
             // add tests to execution vector
             let mut tests = RstbTests::new();
-            // $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
             $(tests.push(Test::new(stringify!($i).to_string(), |sim_root| { $i(sim_root).boxed() }));)+
 
             verilator_init(tests);

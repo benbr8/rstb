@@ -66,7 +66,7 @@ pub trait SimIf {
     fn get_size(&self, obj_handle: usize) -> i32;
     fn get_kind(&self, obj_handle: usize) -> ObjectKind;
     // fn is_signed(&self, obj_handle: usize) -> bool;
-    fn get_full_name(&self, obj: usize) -> SimpleResult<String>;
+    fn get_full_name(&self, obj: &SimObject) -> SimpleResult<String>;
     fn get_sim_precision(&self) -> i8;
     fn get_root_object(&self) -> SimpleResult<SimObject>;
     fn register_callback_rw(&self) -> SimpleResult<usize>;

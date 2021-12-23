@@ -43,7 +43,7 @@ impl SimObject {
 
     pub fn name(&self) -> String {
         SIM_IF
-            .get_full_name(self.handle)
+            .get_full_name(self)
             .expect("Couldn't get name of ObjectInner")
     }
 
