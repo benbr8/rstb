@@ -5,11 +5,10 @@ use std::sync::atomic::AtomicBool;
 use crate::sim_if::{SimCallback, SimIf, SIM_IF};
 use crate::signal::{ObjectKind, SimObject};
 use crate::trigger;
-use crate::trigger::EdgeKind;
 use crate::test;
 use crate::SimpleResult;
 use crate::rstb_obj::RstbObjSafe;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use intmap::IntMap;
 use lazy_static::lazy_static;
 use crate::verilator_user::*;
@@ -31,6 +30,9 @@ lazy_static! {
 static RO: AtomicBool = AtomicBool::new(false);
 lazy_static! {
     static ref TIME_SET: RstbObjSafe<BTreeSet<u64>> = RstbObjSafe::new(BTreeSet::new());
+}
+lazy_static! {
+    static ref EDGE_MAP: RstbObjSafe<IntMap<u64>> = RstbObjSafe::new(IntMap::new());
 }
 
 
@@ -161,7 +163,18 @@ impl SimIf for Verilator {
         Ok(cb_hdl)
     }
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
-        todo!()
+        let cb_hdl = new_cb_hdl();
+        if !EDGE_MAP.with_mut(|mut map| {
+            let current_value = unsafe { vl_get_var_u64(sig_hdl) };
+            map.insert(sig_hdl as u64, current_value)
+        }) {
+            return Err(());
+        }
+
+        CB_HDL_MAP.with_mut(|mut map| {
+            map.insert(cb_hdl as u64, CbKind::Edge(sig_hdl));
+        });
+        Ok(cb_hdl)
     }
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         let cb = CB_HDL_MAP.with_mut(|mut map| {
@@ -173,7 +186,12 @@ impl SimIf for Verilator {
                     panic!("Callback was not registered at t_abs.")
                 }
             }),
-            _ => todo!()
+            CbKind::Edge(sig_hdl) => EDGE_MAP.with_mut(|mut map| {
+                if map.remove(sig_hdl as u64).is_none() {
+                    panic!("Callback was not registered for signal.")
+                }
+            }),
+            CbKind::Ro => { RO.fetch_and(false, std::sync::atomic::Ordering::Relaxed); }
         };
         Ok(())
     }
@@ -199,6 +217,17 @@ fn new_cb_hdl() -> usize {
         *cnt += 1;
         out
     })
+}
+
+fn get_value_u64(sig_hdl: usize) -> u64 {
+    let t = unsafe { vl_get_var_type(sig_hdl) };
+    match t {
+        2 => unsafe { vl_get_var_u8(sig_hdl) as u64 },
+        3 => unsafe { vl_get_var_u16(sig_hdl) as u64 },
+        4 => unsafe { vl_get_var_u32(sig_hdl) as u64 },
+        5 => unsafe { vl_get_var_u64(sig_hdl) as u64 },
+        _ => panic!("Verilator variable type not supported."),
+    }
 }
 
 pub fn verilator_init(tests: test::RstbTests) {
