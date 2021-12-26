@@ -2,9 +2,10 @@ use num_format::{Locale, ToFormattedString};
 use std::ffi::{CString, CStr};
 use std::sync::atomic::AtomicBool;
 
-use crate::sim_if::{SimCallback, SimIf, SIM_IF};
+use crate::sim_if::{SimIf, SIM_IF};
 use crate::signal::{ObjectKind, SimObject};
 use crate::trigger;
+use crate::trigger::EdgeKind;
 use crate::test;
 use crate::SimpleResult;
 use crate::rstb_obj::RstbObjSafe;
@@ -62,7 +63,7 @@ impl SimIf for Verilator {
     fn get_value(&self, obj: &SimObject) -> SimpleResult<u32> {
         if let ObjectKind::Int(size) = obj.kind {
             match size {
-                8 => unsafe { Ok(vl_get_var_u8(obj.handle) as u32) },
+                8 => unsafe { let a = vl_get_var_u8(obj.handle) as u32; SIM_IF.log(&format!("vl_get_var returns {}", a)); Ok(a)},
                 16 => unsafe { Ok(vl_get_var_u16(obj.handle) as u32) },
                 32 => unsafe { Ok(vl_get_var_u32(obj.handle)) },
                 _ =>  { crate::cold(); Err(()) }
@@ -102,7 +103,12 @@ impl SimIf for Verilator {
     }
     fn log(&self, msg: &str) {
         // TODO: make pretty
-        println!("{}", msg);
+        let t = self.get_sim_time_steps();
+        println!(
+            "{}ns: {}",
+            t.to_formatted_string(&Locale::en),
+            msg
+        );
     }
     fn get_size(&self, obj: usize) -> i32 {
         todo!()
@@ -150,6 +156,7 @@ impl SimIf for Verilator {
     }
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         let t_abs = t + unsafe { vl_get_time() };
+        //SIM_IF.log(&format!("Setting callback at t={}", t_abs));
         let cb_hdl = new_cb_hdl();
         
         TIME_SET.with_mut(|mut set| {
@@ -165,7 +172,7 @@ impl SimIf for Verilator {
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
         let cb_hdl = new_cb_hdl();
         if !EDGE_MAP.with_mut(|mut map| {
-            let current_value = unsafe { vl_get_var_u64(sig_hdl) };
+            let current_value = get_value_u64(sig_hdl);
             map.insert(sig_hdl as u64, current_value)
         }) {
             return Err(());
@@ -222,7 +229,8 @@ fn new_cb_hdl() -> usize {
 fn get_value_u64(sig_hdl: usize) -> u64 {
     let t = unsafe { vl_get_var_type(sig_hdl) };
     match t {
-        2 => unsafe { vl_get_var_u8(sig_hdl) as u64 },
+        2 => unsafe { let a = vl_get_var_u8(sig_hdl);
+            SIM_IF.log(&format!("vl_get_var2 returns {}", a)); a as u64},
         3 => unsafe { vl_get_var_u16(sig_hdl) as u64 },
         4 => unsafe { vl_get_var_u32(sig_hdl) as u64 },
         5 => unsafe { vl_get_var_u64(sig_hdl) as u64 },
@@ -244,12 +252,40 @@ fn handle_time_callbacks() {
     if TIME_SET.with_mut(|mut set|{
         set.remove(&t) 
     }) {
+        //SIM_IF.log(&format!("Calling time callback at t={}", t));
         trigger::react_time(t);
     }
 }
 fn handle_ro_callbacks() {
     if RO.fetch_and(false, std::sync::atomic::Ordering::Relaxed) {
         trigger::react_ro();
+    }
+}
+fn handle_edge_callbacks() {
+    // TODO: find more eifficient solution
+    let map = EDGE_MAP.with_mut(|map| {
+        map.clone()
+    });
+    for (sig_hdl, last_val) in map.iter() {
+        let current_val = get_value_u64(*sig_hdl as usize);
+        //let current_val = unsafe {vl_get_var_u8(*sig_hdl as usize)};
+        SIM_IF.log(&format!("Current: {}, last: {}", current_val, *last_val));
+        if *last_val != (current_val as u64) {
+            let edge;
+            if *last_val == 1 && current_val == 0 {
+                edge = EdgeKind::Falling;
+            } else if *last_val == 0 && current_val == 1 {
+                edge = EdgeKind::Rising;
+            } else{
+                edge = EdgeKind::Any;
+            }
+            trigger::react_edge(*sig_hdl as usize, edge);
+            EDGE_MAP.with_mut(|mut map| {
+                if let Some(last_val) = map.get_mut(*sig_hdl as u64) {
+                    *last_val = current_val as u64;
+                }
+            });
+        }
     }
 }
 
@@ -260,11 +296,10 @@ fn get_next_time() -> Option<u64> {
 }
 
 fn run_sim() {
-    // let mut next_time = None;
     loop {
         handle_time_callbacks();
         unsafe { vl_eval(); }
-        // handle_edge_callbacks();
+        handle_edge_callbacks();
         handle_ro_callbacks();
         if let Some(next_time) = get_next_time() {
             unsafe { vl_set_time(next_time); }

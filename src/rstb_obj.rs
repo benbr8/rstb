@@ -131,7 +131,7 @@ impl<T> RstbObjSafe<T> {
         (*self.0).try_lock().unwrap()
     }
     pub fn with_mut<F: FnOnce(MutexGuard<T>) -> R, R>(&self, f: F) -> R {
-        let guard = self.0.lock().unwrap();
+        let guard = self.0.try_lock().unwrap();
         f(guard)
     }
 }
