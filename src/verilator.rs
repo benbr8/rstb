@@ -36,15 +36,13 @@ lazy_static! {
     static ref EDGE_MAP: RstbObjSafe<IntMap<u64>> = RstbObjSafe::new(IntMap::new());
 }
 
-
-
 pub(crate) struct Verilator {
 }
 
 impl Verilator {
 }
 
-// #[allow()]
+
 impl SimIf for Verilator {
     fn set_value(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
         force_panic(force);
@@ -60,10 +58,11 @@ impl SimIf for Verilator {
             Err(())
         }
     }
+
     fn get_value(&self, obj: &SimObject) -> SimpleResult<u32> {
         if let ObjectKind::Int(size) = obj.kind {
             match size {
-                8 => unsafe { let a = vl_get_var_u8(obj.handle) as u32; SIM_IF.log(&format!("vl_get_var returns {}", a)); Ok(a)},
+                8 => unsafe { let a = vl_get_var_u8(obj.handle) as u32; Ok(a) },
                 16 => unsafe { Ok(vl_get_var_u16(obj.handle) as u32) },
                 32 => unsafe { Ok(vl_get_var_u32(obj.handle)) },
                 _ =>  { crate::cold(); Err(()) }
@@ -72,6 +71,7 @@ impl SimIf for Verilator {
             Err(())
         }
     }
+
     fn get_object_by_name(&self, name: &str) -> SimpleResult<SimObject> {
         let cstr = CString::new(name).unwrap();
         let scope_hdl = unsafe { vl_get_scope_by_name(cstr.as_ptr()) };
@@ -82,7 +82,13 @@ impl SimIf for Verilator {
             })
         }
         // if name is not a scope, split string on last '.' -> try to get scope and var in scope
-        if let Some((scope_name, var_name)) = name.rsplit_once('.') {
+        if let Some((mut scope_name, var_name)) = name.rsplit_once('.') {
+            // if scope is of form "TOP.???", instead get the handle to "TOP.TOP" variable
+            if let Some((l, _)) = scope_name.rsplit_once('.') {
+                if l == "TOP" {
+                    scope_name = "TOP.TOP";
+                }
+            }
             let cstr = CString::new(scope_name).unwrap();
             let scope_hdl = unsafe { vl_get_scope_by_name(cstr.as_ptr()) };
             if scope_hdl != 0 {
@@ -96,11 +102,12 @@ impl SimIf for Verilator {
             }
         }
         Err(())
-        // refactor into get_obj_by_name --> return SimObject instead of handle
     }
+
     fn get_sim_time_steps(&self) -> u64 {
         unsafe { vl_get_time() }
     }
+
     fn log(&self, msg: &str) {
         // TODO: make pretty
         let t = self.get_sim_time_steps();
@@ -110,12 +117,15 @@ impl SimIf for Verilator {
             msg
         );
     }
+
     fn get_size(&self, obj: usize) -> i32 {
         todo!()
     }
+
     fn get_kind(&self, obj: usize) -> ObjectKind {
         todo!()
     }
+
     fn get_full_name(&self, obj: &SimObject) -> SimpleResult<String> {
         match obj.kind {
             ObjectKind::Hier => unsafe { 
@@ -125,14 +135,17 @@ impl SimIf for Verilator {
             _ => panic!("Verilator does not expose full name from var handle.")
         }
     }
+
     #[allow(unused_variables)]
     fn get_sim_time(&self, unit: &str) -> u64 {
         self.log("Warning: sim time forced to 'steps' when using Verilator.");
         self.get_sim_time_steps()
     }
+
     fn get_sim_precision(&self) -> i8 {
         panic!("Verilator does not expose simulation precision")
     }
+
     fn get_root_object(&self) -> SimpleResult<SimObject> {
         let hdl = unsafe { vl_get_root_scope() };
         match hdl {
@@ -146,6 +159,7 @@ impl SimIf for Verilator {
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         panic!("Verilator does not support RW callbacks");
     }
+    
     fn register_callback_ro(&self) -> SimpleResult<usize> {
         RO.store(true, std::sync::atomic::Ordering::Relaxed);
         let cb_hdl = new_cb_hdl();
@@ -154,6 +168,7 @@ impl SimIf for Verilator {
         });
         Ok(cb_hdl)
     }
+
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         let t_abs = t + unsafe { vl_get_time() };
         //SIM_IF.log(&format!("Setting callback at t={}", t_abs));
@@ -169,6 +184,7 @@ impl SimIf for Verilator {
         });
         Ok(cb_hdl)
     }
+
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
         let cb_hdl = new_cb_hdl();
         if !EDGE_MAP.with_mut(|mut map| {
@@ -183,6 +199,7 @@ impl SimIf for Verilator {
         });
         Ok(cb_hdl)
     }
+
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         let cb = CB_HDL_MAP.with_mut(|mut map| {
             map.remove(cb_hdl as u64).expect("Could not find callback handle.")
@@ -229,8 +246,7 @@ fn new_cb_hdl() -> usize {
 fn get_value_u64(sig_hdl: usize) -> u64 {
     let t = unsafe { vl_get_var_type(sig_hdl) };
     match t {
-        2 => unsafe { let a = vl_get_var_u8(sig_hdl);
-            SIM_IF.log(&format!("vl_get_var2 returns {}", a)); a as u64},
+        2 => unsafe { vl_get_var_u8(sig_hdl) as u64 },
         3 => unsafe { vl_get_var_u16(sig_hdl) as u64 },
         4 => unsafe { vl_get_var_u32(sig_hdl) as u64 },
         5 => unsafe { vl_get_var_u64(sig_hdl) as u64 },
@@ -268,8 +284,7 @@ fn handle_edge_callbacks() {
     });
     for (sig_hdl, last_val) in map.iter() {
         let current_val = get_value_u64(*sig_hdl as usize);
-        //let current_val = unsafe {vl_get_var_u8(*sig_hdl as usize)};
-        SIM_IF.log(&format!("Current: {}, last: {}", current_val, *last_val));
+        // SIM_IF.log(&format!("Current: {}, last: {}", current_val, *last_val));
         if *last_val != (current_val as u64) {
             let edge;
             if *last_val == 1 && current_val == 0 {

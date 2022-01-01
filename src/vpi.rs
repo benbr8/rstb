@@ -46,6 +46,7 @@ impl SimIf for Vpi {
     fn set_value(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
         self.set_value_i32(obj, value as i32, force)
     }
+
     fn get_value(&self, obj: &SimObject) -> SimpleResult<u32> {
         Ok(self.get_value_i32(obj)? as u32)
     }
@@ -95,10 +96,12 @@ impl SimIf for Vpi {
             }
         }
     }
+
     fn set_value_u32(&self, obj: &SimObject, value: u32, force: bool) -> SimpleResult<()> {
         let value_i32: i32 = unsafe { std::mem::transmute(value) };
         self.set_value_i32(obj, value_i32, force)
     }
+
     fn get_value_u32(&self, obj: &SimObject) -> SimpleResult<u32> {
         let val_i32 = self.get_value_i32(obj)?;
         Ok(unsafe { std::mem::transmute::<i32, u32>(val_i32) })
@@ -129,8 +132,8 @@ impl SimIf for Vpi {
         };
         // TODO: error??
         Ok(())
-
     }
+
     fn get_value_bin(&self, obj: &SimObject) -> SimpleResult<String> {
         unsafe {
             let mut val = vpi_user::t_vpi_value {
@@ -149,6 +152,7 @@ impl SimIf for Vpi {
             }
         }
     }
+
     fn release(&self, obj: &SimObject) -> SimpleResult<()> {
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiIntVal as i32,
@@ -164,6 +168,7 @@ impl SimIf for Vpi {
         };
         Ok(())
     }
+
     fn get_object_by_name(&self, name: &str) -> SimpleResult<SimObject> {
         let mut name_string = name.to_string();
         name_string.push('\0');
@@ -184,6 +189,7 @@ impl SimIf for Vpi {
             })
         }
     }
+
     fn get_sim_time_steps(&self) -> u64 {
         let mut time_obj = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSimTime as i32,
@@ -194,6 +200,7 @@ impl SimIf for Vpi {
         }
         ((time_obj.high as u64) << 32) + time_obj.low as u64
     }
+
     fn log(&self, msg: &str) {
         let t = self.get_sim_time_f64("ns");
         let int = t.floor() as u64;
@@ -208,9 +215,11 @@ impl SimIf for Vpi {
         // eprintln!("{}", string);
         unsafe { vpi_user::vpi_printf(string.as_mut_ptr() as *mut i8) };
     }
+    
     fn get_size(&self, obj: usize) -> i32 {
         unsafe { vpi_user::vpi_get(vpi_user::vpiSize as i32, obj as *mut u32) }
     }
+
     fn get_kind(&self, obj: usize) -> ObjectKind {
         let t = get_kind_raw(obj);
         match t as u32 {
@@ -238,9 +247,11 @@ impl SimIf for Vpi {
             Ok(s)
         }
     }
+    
     fn get_sim_precision(&self) -> i8 {
         self.precision
     }
+
     fn get_root_object(&self) -> SimpleResult<SimObject> {
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
@@ -257,6 +268,7 @@ impl SimIf for Vpi {
         }
         Ok(SimObject::from_handle(root as usize)?)
     }
+
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadWriteSynch as i32;
         let time = vpi_user::t_vpi_time {
@@ -272,6 +284,7 @@ impl SimIf for Vpi {
             unsafe { self._register_callback(reason, time, value, handle, react_vpi_rw) }
         )
     }
+
     fn register_callback_ro(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadOnlySynch as i32;
         let time = vpi_user::t_vpi_time {
@@ -287,6 +300,7 @@ impl SimIf for Vpi {
             unsafe { self._register_callback(reason, time, value, handle, react_vpi_ro) }
         )
     }
+
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbAfterDelay as i32;
         let time = vpi_user::t_vpi_time {
@@ -304,6 +318,7 @@ impl SimIf for Vpi {
             unsafe { self._register_callback(reason, time, value, handle, react_vpi_time) }
         )
     }
+
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbValueChange as i32;
         let time = vpi_user::t_vpi_time {
@@ -319,6 +334,7 @@ impl SimIf for Vpi {
             unsafe { self._register_callback(reason, time, value, handle, react_vpi_edge) }
         )
     }
+
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         match unsafe { vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
             1 => Ok(()),
