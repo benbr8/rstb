@@ -55,12 +55,7 @@ impl SimIf for Vpi {
             flag = vpi_user::vpiForceFlag as i32;
         }
         unsafe {
-            vpi_user::vpi_put_value(
-                obj as *mut u32,
-                &mut val,
-                &mut time,
-                flag,
-            );
+            vpi_user::vpi_put_value(obj as *mut u32, &mut val, &mut time, flag);
         };
         // TODO: error??
         Ok(())
@@ -84,7 +79,9 @@ impl SimIf for Vpi {
         val.push('\0');
         let mut val = vpi_user::t_vpi_value {
             format: vpi_user::vpiBinStrVal as i32,
-            value: vpi_user::t_vpi_value__bindgen_ty_1 { str_: val.as_mut_ptr() as *mut i8 },
+            value: vpi_user::t_vpi_value__bindgen_ty_1 {
+                str_: val.as_mut_ptr() as *mut i8,
+            },
         };
         let mut time = vpi_user::t_vpi_time {
             type_: vpi_user::vpiSimTime as i32,
@@ -95,16 +92,10 @@ impl SimIf for Vpi {
             flag = vpi_user::vpiForceFlag as i32;
         }
         unsafe {
-            vpi_user::vpi_put_value(
-                obj as *mut u32,
-                &mut val,
-                &mut time,
-                flag,
-            );
+            vpi_user::vpi_put_value(obj as *mut u32, &mut val, &mut time, flag);
         };
         // TODO: error??
         Ok(())
-
     }
     fn get_value_bin(&self, obj: usize) -> SimpleResult<String> {
         unsafe {
@@ -186,8 +177,7 @@ impl SimIf for Vpi {
     fn get_kind(&self, obj: usize) -> ObjectKind {
         let t = get_kind_raw(obj);
         match t as u32 {
-            vpi_user::vpiRealVar
-            | sv_vpi_user::vpiShortRealVar => ObjectKind::Real,
+            vpi_user::vpiRealVar | sv_vpi_user::vpiShortRealVar => ObjectKind::Real,
             vpi_user::vpiNet
             | vpi_user::vpiReg
             | vpi_user::vpiIntegerVar
@@ -214,6 +204,7 @@ impl SimIf for Vpi {
         self.precision
     }
     fn get_root_handle(&self) -> SimpleResult<usize> {
+        let mut result: usize;
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
         if iterator.is_null() {
@@ -223,10 +214,30 @@ impl SimIf for Vpi {
         if root.is_null() {
             return Err(());
         }
-        if !unsafe { vpi_user::vpi_scan(iterator).is_null() } {
-            unsafe { vpi_user::vpi_free_object(iterator) };
+        result = root as usize;
+
+        let name = match (self.get_full_name(root as usize)) {
+            Ok(string) => string,
+            Err(error) => {
+                unsafe { vpi_user::vpi_free_object(iterator) };
+                return Err(()); // Cannot get module's name => consider it invalid
+            }
+        };
+
+        if name.eq("$unit") {
+            // According to the SystemVerilog documentation:
+            // "Compilation unit: A collection of one or more SystemVerilog source files compiled
+            // together."
+            // Looking if an other module if available:
+            let othermod = unsafe { vpi_user::vpi_scan(iterator) };
+            if !othermod.is_null() {
+                // If there is an other module
+                let name = self.get_full_name(othermod as usize).unwrap();
+                result = othermod as usize;
+            }
         }
-        Ok(root as usize)
+        unsafe { vpi_user::vpi_free_object(iterator) }; // Free memory used by the iterator
+        Ok(result)
     }
     fn register_callback_rw(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadWriteSynch as i32;
@@ -239,9 +250,7 @@ impl SimIf for Vpi {
             ..Default::default()
         };
         let handle = std::ptr::null_mut();
-        Ok(
-            unsafe { self._register_callback(reason, time, value, handle, react_vpi_rw) }
-        )
+        Ok(unsafe { self._register_callback(reason, time, value, handle, react_vpi_rw) })
     }
     fn register_callback_ro(&self) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbReadOnlySynch as i32;
@@ -254,9 +263,7 @@ impl SimIf for Vpi {
             ..Default::default()
         };
         let handle = std::ptr::null_mut();
-        Ok(
-            unsafe { self._register_callback(reason, time, value, handle, react_vpi_ro) }
-        )
+        Ok(unsafe { self._register_callback(reason, time, value, handle, react_vpi_ro) })
     }
     fn register_callback_time(&self, t: u64) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbAfterDelay as i32;
@@ -271,9 +278,7 @@ impl SimIf for Vpi {
             ..Default::default()
         };
         let handle = std::ptr::null_mut();
-        Ok(
-            unsafe { self._register_callback(reason, time, value, handle, react_vpi_time) }
-        )
+        Ok(unsafe { self._register_callback(reason, time, value, handle, react_vpi_time) })
     }
     fn register_callback_edge(&self, sig_hdl: usize) -> SimpleResult<usize> {
         const reason: i32 = vpi_user::cbValueChange as i32;
@@ -286,9 +291,7 @@ impl SimIf for Vpi {
             ..Default::default()
         };
         let handle = sig_hdl as *mut u32;
-        Ok(
-            unsafe { self._register_callback(reason, time, value, handle, react_vpi_edge) }
-        )
+        Ok(unsafe { self._register_callback(reason, time, value, handle, react_vpi_edge) })
     }
     fn cancel_callback(&self, cb_hdl: usize) -> SimpleResult<()> {
         match unsafe { vpi_user::vpi_remove_cb(cb_hdl as *mut u32) } {
@@ -297,7 +300,6 @@ impl SimIf for Vpi {
         }
     }
 }
-
 
 #[no_mangle]
 pub(crate) extern "C" fn react_vpi_edge(cb_data: *mut vpi_user::t_cb_data) -> vpi_user::PLI_INT32 {
