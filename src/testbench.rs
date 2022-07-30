@@ -93,7 +93,6 @@ impl<T: 'static + PartialEq> Monitor<T> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self(AnyObj::new_from(MonitorInner {
-            enable: true,
             exp_not_recv: true,
             scoreboard: None,
         }))
@@ -119,7 +118,6 @@ impl<T: 'static + PartialEq> Monitor<T> {
 }
 #[derive(Clone, Copy)]
 struct MonitorInner<T: PartialEq> {
-    enable: bool,
     exp_not_recv: bool,
     scoreboard: Option<Scoreboard<T>>,
 }

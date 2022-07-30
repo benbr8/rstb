@@ -20,7 +20,7 @@ pub struct SimObject {
     handle: usize,
     kind: ObjectKind,
     size: i32,
-    signed: bool,
+    _signed: bool,
 }
 
 impl SimObject {
@@ -90,7 +90,7 @@ impl SimObject {
             handle,
             kind: SIM_IF.get_kind(handle),
             size: SIM_IF.get_size(handle),
-            signed: SIM_IF.is_signed(handle),
+            _signed: SIM_IF.is_signed(handle),
         };
         unsafe {
             SIG_MAP.insert(handle as u64, signal);

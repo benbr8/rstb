@@ -208,17 +208,19 @@ impl SimIf for Vpi {
         let iterator =
             unsafe { vpi_user::vpi_iterate(vpi_user::vpiModule as i32, std::ptr::null_mut()) };
         if iterator.is_null() {
+            unsafe { vpi_user::vpi_free_object(iterator) };
             return Err(());
         }
         let root = unsafe { vpi_user::vpi_scan(iterator) };
         if root.is_null() {
+            unsafe { vpi_user::vpi_free_object(iterator) };
             return Err(());
         }
         result = root as usize;
 
-        let name = match (self.get_full_name(root as usize)) {
+        let name = match self.get_full_name(root as usize) {
             Ok(string) => string,
-            Err(error) => {
+            Err(_) => {
                 unsafe { vpi_user::vpi_free_object(iterator) };
                 return Err(()); // Cannot get module's name => consider it invalid
             }
@@ -232,8 +234,10 @@ impl SimIf for Vpi {
             let othermod = unsafe { vpi_user::vpi_scan(iterator) };
             if !othermod.is_null() {
                 // If there is an other module
-                let name = self.get_full_name(othermod as usize).unwrap();
                 result = othermod as usize;
+            } else {
+                unsafe { vpi_user::vpi_free_object(iterator) };
+                return Err(());
             }
         }
         unsafe { vpi_user::vpi_free_object(iterator) }; // Free memory used by the iterator
