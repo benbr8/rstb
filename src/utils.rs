@@ -14,6 +14,7 @@ pub fn rand() -> f32 {
     rnd::random::<f32>()
 }
 
+#[inline]
 pub fn rand_int(ceil: u32) -> u32 {
     rnd::random::<u32>() % ceil
 }
